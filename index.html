@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Agent Node Editor</title>
+    <style type="text/css">
+body {
+    font-family: sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Make body take full viewport height */
+    overflow: hidden; /* Prevent body scrollbars when content fits */
+}
+
+#toolbar {
+    display: flex; /* Align items in a row */
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    background-color: #f8f8f8; /* Light background for toolbar */
+}
+
+/* New #editor-area to wrap canvas and inspector for side-by-side layout */
+#editor-area {
+    display: flex;
+    flex-grow: 1; /* Takes up remaining vertical space */
+    overflow: hidden; /* Prevent scrollbars if children manage their own */
+}
+
+/* #editor-container will now be the main area for the canvas */
+#editor-container {
+    flex-grow: 1; /* Canvas container takes up most of the space */
+    display: flex; /* To allow node-canvas to grow */
+    /* background-color: #fafafa; /* Light grey for the container */
+    /* border-right: 1px solid #ccc; */ /* Separator from inspector */
+    /* No direct height, flex-grow handles it */
+}
+
+#node-canvas {
+    flex-grow: 1; /* Canvas takes available space in editor-container */
+    position: relative; /* Important for absolute positioning of nodes */
+    background-color: #e9e9e9; /* Light background for the canvas */
+    min-height: 600px; /* Minimum height */
+    /* width: 80%; /* Take 80% of the editor-area or editor-container */
+    /* The width will be handled by flex-grow on editor-container vs inspector's fixed width */
+    overflow: auto; /* Add scrollbars if nodes go out of bounds */
+    border-right: 1px solid #ccc; /* Visual separation from inspector if inspector is next to it */
+}
+
+#inspector {
+    width: 20%; /* Takes 20% of the editor-area width */
+    min-width: 200px; /* Minimum width for usability */
+    max-width: 300px; /* Maximum width */
+    padding: 15px;
+    border-left: 1px solid #ccc; /* Visual separation from canvas */
+    background-color: #f9f9f9; /* Slightly different background */
+    overflow-y: auto; /* Allow inspector content to scroll if it gets too long */
+}
+
+.node {
+    position: absolute;
+    width: 150px;
+    height: 80px;
+    background-color: #fff; /* White background for nodes */
+    border: 1px solid #aaa; /* Slightly darker border for nodes */
+    border-radius: 5px; /* Rounded corners for nodes */
+    padding: 10px;
+    cursor: grab;
+    user-select: none; /* Prevent text selection when dragging */
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+    display: flex; /* To help position ports if they are direct children */
+    justify-content: center; /* Center content like name if ports are outside */
+    align-items: center; /* Center content like name */
+}
+
+/* Styling for connection ports */
+.node-port {
+    position: absolute; /* Positioned relative to the node */
+    width: 12px;
+    height: 12px;
+    background-color: #ddd;
+    border: 1px solid #666;
+    border-radius: 50%; /* Makes it a circle */
+    cursor: crosshair; /* Indicate connectable */
+    z-index: 10; /* Ensure ports are above node content if overlapping */
+}
+
+.input-port {
+    left: -7px; /* Position half-way out on the left */
+    /* top: 50%;
+    transform: translateY(-50%); */ /* Vertically center */
+}
+
+.output-port {
+    right: -7px; /* Position half-way out on the right */
+    /* top: 50%;
+    transform: translateY(-50%); */ /* Vertically center */
+}
+
+/* Visual feedback when starting a connection from a port */
+.node-port.connecting {
+    background-color: #007bff;
+    border-color: #0056b3;
+}
+
+
+/* Basic styling for the button in the toolbar */
+#add-node-btn {
+    padding: 8px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#add-node-btn:hover {
+    background-color: #0056b3;
+}
+
+h1, h2 {
+    margin-top: 0; /* Remove default top margin for headings */
+}
+
+/* Styling for selected node */
+.node.selected {
+    border-color: #007bff; /* Blue border */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* Blue glow */
+}
+
+/* Basic styling for inspector panel content */
+#inspector-content label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#inspector-content input[type="text"],
+#inspector-content textarea {
+    width: calc(100% - 20px); /* Full width minus padding */
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+#inspector-content textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* Node type specific styling */
+.node-type-input {
+    background-color: #e6f7ff; /* Light blue */
+    border-color: #91d5ff;
+}
+
+.node-type-llm {
+    background-color: #fffbe6; /* Light yellow */
+    border-color: #ffe58f;
+}
+
+.node-type-output {
+    background-color: #f6ffed; /* Light green */
+    border-color: #b7eb8f;
+}
+    </style>
+</head>
+<body>
+    <!-- <h1>LLM Agent Node Editor</h1> Removed as per styling plan -->
+
+    <div id="toolbar">
+        <!-- Controls will go here -->
+        <button id="add-node-btn">Add Node</button>
+        <button id="save-graph-btn">Save Graph</button>
+        <button id="load-graph-btn">Load Graph</button>
+        <button id="run-graph-btn">Run Graph</button>
+    </div>
+
+    <div id="editor-area"> <!-- New wrapper div -->
+        <div id="editor-container"> <!-- Container for the canvas -->
+            <div id="node-canvas">
+                <!-- Nodes will be dynamically added here by editor.js -->
+                <svg id="connections-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"></svg>
+            </div>
+        </div>
+
+        <div id="inspector">
+            <h2>Node Inspector</h2>
+            <div id="inspector-content">
+                <p>Select a node to see its properties.</p>
+                <!-- Dynamic content will go here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+document.addEventListener('DOMContentLoaded', () => {
+    const nodeCanvas = document.getElementById('node-canvas');
+    const addNodeBtn = document.getElementById('add-node-btn');
+    const saveGraphBtn = document.getElementById('save-graph-btn');
+    const loadGraphBtn = document.getElementById('load-graph-btn');
+    const inspectorContent = document.getElementById('inspector-content');
+    // Assume SVG element is in index.html: <svg id="connections-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"></svg>
+    const svgCanvas = document.getElementById('connections-svg');
+
+    let selectedNodeId = null;
+    let nodes = [];
+    let connections = [];
+    const availableNodeTypes = ['Input', 'LLM', 'Output'];
+    let nextNodeTypeIndex = 0;
+    let typeCounters = { 'Input': 0, 'LLM': 0, 'Output': 0 }; // To number nodes like "Input 1", "LLM 2"
+    let nodeIdCounter = 0;
+    let connectionIdCounter = 0;
+
+    let pendingConnection = null; // { fromNodeId, fromPortId, fromPortElement }
+    let draggedNode = null;
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    // Function to render all nodes on the canvas
+    function renderNodes() {
+        // nodeCanvas.innerHTML = ''; // Clear canvas - BE CAREFUL, this will remove SVG too if it's inside nodeCanvas and not handled.
+        // Let's selectively remove nodes instead.
+        Array.from(nodeCanvas.getElementsByClassName('node')).forEach(el => el.remove());
+
+
+        nodes.forEach(node => {
+            const nodeEl = document.createElement('div');
+            nodeEl.classList.add('node');
+            nodeEl.id = node.id;
+            nodeEl.style.left = `${node.x}px`;
+            nodeEl.style.top = `${node.y}px`;
+
+            // Clear old type classes
+            availableNodeTypes.forEach(type => nodeEl.classList.remove(`node-type-${type.toLowerCase()}`));
+            // Add current type class
+            if (node.type) {
+                nodeEl.classList.add(`node-type-${node.type.toLowerCase()}`);
+            }
+
+            const nameEl = document.createElement('span');
+            nameEl.textContent = node.name;
+            nodeEl.appendChild(nameEl);
+
+            // Add 'selected' class if this node is selected
+            if (node.id === selectedNodeId) {
+                nodeEl.classList.add('selected');
+            }
+
+            // Render ports
+            node.inputs.forEach(port => {
+                const portEl = document.createElement('div');
+                portEl.classList.add('node-port', 'input-port');
+                portEl.id = `${node.id}-${port.portId}`;
+                portEl.dataset.nodeId = node.id;
+                portEl.dataset.portId = port.portId;
+                portEl.dataset.portType = 'input';
+                // Position is handled by CSS (top: 50%, transform: translateY(-50%))
+                // We might need to adjust this if node height is variable.
+                // For now, assuming fixed height or CSS handles it.
+                // Example: if height is 80px, port is at 40px - 6px(half port height) = 34px
+                portEl.style.top = `${(80 / 2) - 6}px`; // Assuming node height 80px, port height 12px
+                nodeEl.appendChild(portEl);
+            });
+
+            node.outputs.forEach(port => {
+                const portEl = document.createElement('div');
+                portEl.classList.add('node-port', 'output-port');
+                portEl.id = `${node.id}-${port.portId}`;
+                portEl.dataset.nodeId = node.id;
+                portEl.dataset.portId = port.portId;
+                portEl.dataset.portType = 'output';
+                portEl.style.top = `${(80 / 2) - 6}px`; // Assuming node height 80px, port height 12px
+                nodeEl.appendChild(portEl);
+            });
+
+            nodeCanvas.appendChild(nodeEl);
+        });
+        renderConnections(); // Re-render connections whenever nodes are re-rendered
+    }
+
+    function renderConnections() {
+        if (!svgCanvas) {
+            console.error("SVG canvas not found!");
+            return;
+        }
+        svgCanvas.innerHTML = ''; // Clear existing lines
+
+        connections.forEach(conn => {
+            const fromPortEl = document.getElementById(`${conn.fromNodeId}-${conn.fromPortId}`);
+            const toPortEl = document.getElementById(`${conn.toNodeId}-${conn.toPortId}`);
+
+            if (fromPortEl && toPortEl) {
+                const svgRect = svgCanvas.getBoundingClientRect();
+                const fromRect = fromPortEl.getBoundingClientRect();
+                const toRect = toPortEl.getBoundingClientRect();
+
+                // Calculate center of ports relative to the SVG canvas
+                const x1 = fromRect.left + fromRect.width / 2 - svgRect.left;
+                const y1 = fromRect.top + fromRect.height / 2 - svgRect.top;
+                const x2 = toRect.left + toRect.width / 2 - svgRect.left;
+                const y2 = toRect.top + toRect.height / 2 - svgRect.top;
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1.toString());
+                line.setAttribute('y1', y1.toString());
+                line.setAttribute('x2', x2.toString());
+                line.setAttribute('y2', y2.toString());
+                line.setAttribute('stroke', '#555');
+                line.setAttribute('stroke-width', '2');
+                svgCanvas.appendChild(line);
+            }
+        });
+    }
+
+
+
+    function updateAddNodeButtonText() {
+        addNodeBtn.textContent = `Add ${availableNodeTypes[nextNodeTypeIndex]} Node`;
+    }
+
+    // Add Node functionality
+    addNodeBtn.addEventListener('click', () => {
+        nodeIdCounter++;
+        const currentType = availableNodeTypes[nextNodeTypeIndex];
+        typeCounters[currentType]++;
+
+        const newNode = {
+            id: `node-${nodeIdCounter}`,
+            name: `${currentType} ${typeCounters[currentType]}`,
+            type: currentType,
+            x: 50 + (Object.values(typeCounters).reduce((a, b) => a + b, 0) % 5) * 30, // Position based on total nodes
+            y: 80 + (Math.floor(Object.values(typeCounters).reduce((a, b) => a + b, 0) / 5)) * 30,
+            content: `Content for ${currentType} ${typeCounters[currentType]}`,
+            inputs: [{ portId: 'port-in', connectedTo: null }], // Standard one input
+            outputs: [{ portId: 'port-out' }] // Standard one output
+        };
+
+        // Customize ports based on type (Example: Input nodes have no inputs, Output nodes have no outputs)
+        if (currentType === 'Input') {
+            newNode.inputs = [];
+        } else if (currentType === 'Output') {
+            newNode.outputs = [];
+        }
+
+        nodes.push(newNode);
+
+        nextNodeTypeIndex = (nextNodeTypeIndex + 1) % availableNodeTypes.length;
+        updateAddNodeButtonText();
+
+        renderNodes();
+        selectedNodeId = newNode.id; // Select the newly added node
+        updateInspector();
+    });
+
+    // Initialize button text on load
+    updateAddNodeButtonText();
+
+    const runGraphBtn = document.getElementById('run-graph-btn');
+
+    function runGraph() {
+        console.log("Starting graph execution...");
+        const portOutputData = {}; // Stores data produced by output ports: { 'nodeId-portId': data }
+        const queue = []; // Queue of node IDs to process
+        const visitedInExecution = new Set(); // Nodes visited in this specific execution run
+        let iterations = 0;
+        const maxIterations = nodes.length * 2 + 10; // Safety break for potential cycles
+
+        // 1. Find starting nodes (Input nodes) and prime the queue
+        nodes.forEach(node => {
+            if (node.type === 'Input') {
+                if (node.outputs && node.outputs.length > 0) {
+                    const outputPortId = `${node.id}-${node.outputs[0].portId}`;
+                    portOutputData[outputPortId] = node.content;
+                    console.log(`Input Node '${node.name}' producing: ${node.content}`);
+
+                    connections.forEach(conn => {
+                        if (conn.fromNodeId === node.id && conn.fromPortId === node.outputs[0].portId) {
+                            if (!visitedInExecution.has(conn.toNodeId)) {
+                                queue.push(conn.toNodeId);
+                                visitedInExecution.add(conn.toNodeId); // Add to visited set when enqueued
+                            }
+                        }
+                    });
+                } else {
+                    console.log(`Input Node '${node.name}' has no outputs defined. Cannot start flow.`);
+                }
+            }
+        });
+
+        // 2. Process nodes in the queue
+        while (queue.length > 0 && iterations < maxIterations) {
+            iterations++;
+            const currentNodeId = queue.shift();
+            const currentNode = nodes.find(n => n.id === currentNodeId);
+
+            if (!currentNode) {
+                console.error(`Node with ID ${currentNodeId} not found during execution.`);
+                continue;
+            }
+
+            let combinedInputData = null; // For nodes that can accept input
+
+            // Gather input for the current node
+            if (currentNode.inputs && currentNode.inputs.length > 0) {
+                // Assuming one input port for simplicity for LLM and Output nodes
+                const inputPort = currentNode.inputs[0];
+                const incomingConnection = connections.find(conn => conn.toNodeId === currentNode.id && conn.toPortId === inputPort.portId);
+
+                if (incomingConnection) {
+                    const sourcePortKey = `${incomingConnection.fromNodeId}-${incomingConnection.fromPortId}`;
+                    if (portOutputData.hasOwnProperty(sourcePortKey)) {
+                        combinedInputData = portOutputData[sourcePortKey];
+                        console.log(`Processing Node '${currentNode.name}' (${currentNode.type}) with input: ${combinedInputData}`);
+                    } else {
+                        console.log(`Node '${currentNode.name}' (${currentNode.type}) is connected, but source port ${sourcePortKey} has no data.`);
+                        // Decide if processing should continue or not for this node
+                        // For now, we'll let it process but with null input
+                    }
+                } else {
+                     console.log(`Node '${currentNode.name}' (${currentNode.type}) has an input port but no incoming connection.`);
+                }
+            } else if (currentNode.type !== 'Input') { // Input nodes don't need prior input from graph
+                 console.log(`Node '${currentNode.name}' (${currentNode.type}) has no input ports defined.`);
+            }
+
+
+            // Node type specific logic
+            if (currentNode.type === 'LLM') {
+                const llmInput = combinedInputData !== null ? combinedInputData : (currentNode.content || ""); // Use node's own content as fallback/additional input
+                const transformedData = `LLM processed: ${llmInput}`;
+                console.log(`LLM Node '${currentNode.name}' transformed data to: ${transformedData}`);
+                if (currentNode.outputs && currentNode.outputs.length > 0) {
+                    const outputPortId = `${currentNode.id}-${currentNode.outputs[0].portId}`;
+                    portOutputData[outputPortId] = transformedData;
+
+                    connections.forEach(conn => {
+                        if (conn.fromNodeId === currentNode.id && conn.fromPortId === currentNode.outputs[0].portId) {
+                            if (!visitedInExecution.has(conn.toNodeId)) { // Check before adding to queue
+                                queue.push(conn.toNodeId);
+                                visitedInExecution.add(conn.toNodeId);
+                            } else {
+                                // If already visited in this run, could be a loop or multiple paths to same node.
+                                // For simple DAG, this just means it was already processed. For cycles, this prevents re-queuing.
+                                console.log(`Node '${conn.toNodeId}' already processed or enqueued in this run. Skipping.`);
+                            }
+                        }
+                    });
+                }
+            } else if (currentNode.type === 'Output') {
+                console.log(`Output Node '${currentNode.name}' received: ${combinedInputData !== null ? combinedInputData : "No input data"}`);
+                // Output nodes do not produce further data for the graph in this model
+            }
+            // Input nodes are handled at the start, not expected to be in the main queue processing logic for data transformation
+        }
+
+        if (iterations >= maxIterations) {
+            console.warn("Graph execution stopped: Maximum iteration limit reached. Possible cycle detected.");
+        }
+        console.log("Graph execution finished.");
+    }
+
+    if (runGraphBtn) {
+        runGraphBtn.addEventListener('click', runGraph);
+    }
+
+    // Drag and Drop Functionality & Port Click Handling
+    nodeCanvas.addEventListener('mousedown', (event) => {
+        const targetPortElement = event.target.closest('.node-port');
+
+        if (targetPortElement) {
+            event.stopPropagation(); // Prevent node dragging if clicking on a port
+            const nodeId = targetPortElement.dataset.nodeId;
+            const portId = targetPortElement.dataset.portId;
+            const portType = targetPortElement.dataset.portType;
+
+            if (portType === 'output') {
+                if (pendingConnection) { // If already started a connection from another output
+                    pendingConnection.fromPortElement.classList.remove('connecting');
+                }
+                pendingConnection = { fromNodeId: nodeId, fromPortId: portId, fromPortElement: targetPortElement };
+                targetPortElement.classList.add('connecting');
+            } else if (portType === 'input' && pendingConnection) {
+                if (pendingConnection.fromNodeId === nodeId) {
+                    // Cannot connect to self
+                    console.warn("Cannot connect a node to itself.");
+                    // Optionally reset pendingConnection here if this is an invalid action
+                    // pendingConnection.fromPortElement.classList.remove('connecting');
+                    // pendingConnection = null;
+                    return;
+                }
+
+                // Check if this input port is already connected (simple check, assumes one connection per input)
+                const targetNode = nodes.find(n => n.id === nodeId);
+                const targetInputPort = targetNode.inputs.find(p => p.portId === portId);
+                if (targetInputPort.connectedTo) {
+                    console.warn("Input port already connected.");
+                    return;
+                }
+
+
+                connectionIdCounter++;
+                const newConnection = {
+                    id: `conn-${connectionIdCounter}`,
+                    fromNodeId: pendingConnection.fromNodeId,
+                    fromPortId: pendingConnection.fromPortId,
+                    toNodeId: nodeId,
+                    toPortId: portId
+                };
+                connections.push(newConnection);
+
+                // Update node data model
+                targetInputPort.connectedTo = { nodeId: pendingConnection.fromNodeId, portId: pendingConnection.fromPortId };
+
+                pendingConnection.fromPortElement.classList.remove('connecting');
+                pendingConnection = null;
+                renderConnections();
+            }
+        } else {
+            // Click was not on a port, handle node selection or dragging
+            const targetNodeElement = event.target.closest('.node');
+
+            if (targetNodeElement) { // Clicked on a node
+                selectedNodeId = targetNodeElement.id;
+                // The rest of the dragging logic
+                draggedNode = nodes.find(n => n.id === targetNodeElement.id);
+                if (!draggedNode) return; // Should not happen if targetNodeElement is found
+
+                isDragging = true;
+                // Visual updates for selection and dragging are handled in renderNodes and mousedown on node
+            } else { // Clicked on canvas background
+                selectedNodeId = null;
+                if (pendingConnection) { // If a connection was pending, cancel it
+                    pendingConnection.fromPortElement.classList.remove('connecting');
+                    pendingConnection = null;
+                    // No need to call renderConnections specifically, as renderNodes will do it
+                }
+            }
+            updateInspector();
+            renderNodes(); // Re-render for selection changes or if a pending connection was cancelled
+
+            // Node dragging specific logic (if a node was clicked)
+            if (targetNodeElement && isDragging) { // isDragging will be true if a node was clicked
+                targetNodeElement.style.cursor = 'grabbing';
+                targetNodeElement.style.zIndex = 1000;
+
+                const nodeRect = targetNodeElement.getBoundingClientRect();
+                const canvasRect = nodeCanvas.getBoundingClientRect();
+                offsetX = event.clientX - canvasRect.left - draggedNode.x;
+                offsetY = event.clientY - canvasRect.top - draggedNode.y;
+            }
+        }
+    });
+
+    function updateInspector() {
+        if (!inspectorContent) return;
+        inspectorContent.innerHTML = ''; // Clear previous content
+
+        if (!selectedNodeId) {
+            const p = document.createElement('p');
+            p.textContent = 'Select a node to see its properties.';
+            inspectorContent.appendChild(p);
+            return;
+        }
+
+        const selectedNode = nodes.find(n => n.id === selectedNodeId);
+        if (!selectedNode) {
+            const p = document.createElement('p');
+            p.textContent = 'Error: Selected node not found.';
+            inspectorContent.appendChild(p);
+            return;
+        }
+
+        // Node Type (Read-only)
+        const typeLabel = document.createElement('label');
+        typeLabel.textContent = 'Type:';
+        const typeValue = document.createElement('p');
+        typeValue.textContent = selectedNode.type || 'N/A';
+        typeValue.style.marginBottom = '10px'; // Add some spacing
+
+        // Node Name
+        const nameLabel = document.createElement('label');
+        nameLabel.setAttribute('for', 'node-name-input');
+        nameLabel.textContent = 'Name:';
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.id = 'node-name-input';
+        nameInput.value = selectedNode.name;
+        nameInput.addEventListener('input', (e) => {
+            selectedNode.name = e.target.value;
+            renderNodes(); // Re-render to update node's displayed name
+        });
+
+        // Node Content
+        const contentLabel = document.createElement('label');
+        contentLabel.setAttribute('for', 'node-content-input');
+        contentLabel.textContent = `Content (${selectedNode.type}):`; // Type-specific prompt for content
+        const contentTextarea = document.createElement('textarea');
+        contentTextarea.id = 'node-content-input';
+        contentTextarea.value = selectedNode.content || ''; // Ensure content exists
+        contentTextarea.addEventListener('input', (e) => {
+            selectedNode.content = e.target.value;
+            // No need to call renderNodes() unless content is displayed on the node itself
+        });
+
+        inspectorContent.appendChild(typeLabel);
+        inspectorContent.appendChild(typeValue);
+        inspectorContent.appendChild(nameLabel);
+        inspectorContent.appendChild(nameInput);
+        inspectorContent.appendChild(contentLabel);
+        inspectorContent.appendChild(contentTextarea);
+    }
+
+
+    document.addEventListener('mousemove', (event) => {
+        if (!isDragging || !draggedNode) return;
+
+        const canvasRect = nodeCanvas.getBoundingClientRect();
+        let mouseX = event.clientX - canvasRect.left;
+        let mouseY = event.clientY - canvasRect.top;
+
+        let newX = mouseX - offsetX;
+        let newY = mouseY - offsetY;
+
+        draggedNode.x = newX;
+        draggedNode.y = newY;
+
+        renderNodes(); // Re-render nodes (which also calls renderConnections)
+    });
+
+    document.addEventListener('mouseup', (event) => {
+        if (isDragging && draggedNode) {
+            const draggedNodeElement = document.getElementById(draggedNode.id);
+            if (draggedNodeElement) {
+                draggedNodeElement.style.cursor = 'grab';
+                draggedNodeElement.style.zIndex = '';
+            }
+        }
+
+        isDragging = false;
+        // Do not reset draggedNode here if we want to keep it selected.
+        // Dragging is finished, but selection state persists.
+        // draggedNode = null;
+
+        // Logic for cancelling pending connection on mouseup elsewhere
+        const targetPortElement = event.target.closest('.node-port');
+        if (!targetPortElement && pendingConnection && event.button === 0) {
+            if (!pendingConnection.fromPortElement.contains(event.target)) {
+                 pendingConnection.fromPortElement.classList.remove('connecting');
+                 pendingConnection = null;
+                 console.log("Connection cancelled by clicking elsewhere on mouseup.");
+                 renderNodes(); // Update visuals if a connection was cancelled
+            }
+        }
+    });
+
+    // Initial render
+    renderNodes();
+    updateInspector(); // Initialize inspector view (e.g. "Select a node")
+// Ensure initial state of inspector is also set
+
+    // Serialization and Deserialization
+    function serializeGraph() {
+        const graphData = {
+            nodes: JSON.parse(JSON.stringify(nodes)), // Deep copy
+            connections: JSON.parse(JSON.stringify(connections)) // Deep copy
+        };
+        return JSON.stringify(graphData, null, 2); // Pretty print JSON
+    }
+
+    function deserializeGraph(jsonString) {
+        try {
+            const graphData = JSON.parse(jsonString);
+            if (!graphData || !Array.isArray(graphData.nodes) || !Array.isArray(graphData.connections)) {
+                console.error("Invalid graph data format.");
+                alert("Error: Invalid graph data format.");
+                return;
+            }
+
+            nodes = graphData.nodes;
+            connections = graphData.connections;
+
+            // Reset type counters and then recount from loaded data
+            typeCounters = { 'Input': 0, 'LLM': 0, 'Output': 0 };
+            let maxNodeId = 0;
+
+            nodes.forEach(node => {
+                const idParts = node.id.split('-');
+                if (idParts.length > 1) {
+                    const idNum = parseInt(idParts[1]);
+                    if (idNum > maxNodeId) {
+                        maxNodeId = idNum;
+                    }
+                }
+                // Recalculate type counters from loaded nodes
+                if (node.type && typeCounters[node.type] !== undefined) {
+                    // Extract number from name like "Input 1", "LLM 2"
+                    const nameParts = node.name.split(' ');
+                    const numInName = parseInt(nameParts[nameParts.length - 1]);
+                    if (!isNaN(numInName) && numInName > typeCounters[node.type]) {
+                        typeCounters[node.type] = numInName;
+                    }
+                }
+                 // Ensure 'connectedTo' is null if it was saved as undefined or missing for an input
+                if (node.inputs) { // Check if inputs exist (e.g. Output nodes might not have them)
+                    node.inputs.forEach(input => {
+                        if (input.connectedTo === undefined) {
+                            input.connectedTo = null;
+                        }
+                    });
+                }
+            });
+            nodeIdCounter = maxNodeId;
+
+            let maxConnId = 0;
+            connections.forEach(conn => {
+                const idNum = parseInt(conn.id.split('-')[1]);
+                if (idNum > maxConnId) {
+                    maxConnId = idNum;
+                }
+            });
+            connectionIdCounter = maxConnId; // Next ID will be maxConnId + 1
+
+            renderNodes(); // Re-render the graph
+            alert("Graph loaded successfully!");
+
+        } catch (error) {
+            console.error("Failed to deserialize graph:", error);
+            alert("Error loading graph: Invalid JSON or data structure.\n" + error.message);
+        }
+    }
+
+    saveGraphBtn.addEventListener('click', () => {
+        const graphJson = serializeGraph();
+        console.log(graphJson);
+        // For testing, offer as download
+        const blob = new Blob([graphJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'graph.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert("Graph saved! Check console or download.");
+    });
+
+    loadGraphBtn.addEventListener('click', () => {
+        const jsonInput = prompt("Paste graph JSON here:");
+        if (jsonInput) {
+            deserializeGraph(jsonInput);
+        }
+    });
+
+});
+// No specific changes needed here for this step based on the diff, but it's part of the overall logic.
+    </script>
+</body>
+</html>

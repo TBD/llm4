@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Basic Editor Tests</title>
+    <link rel="stylesheet" href="../style.css"> <!-- Optional: for context -->
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #test-results { border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+        .test-pass { color: green; }
+        .test-fail { color: red; font-weight: bold; }
+        .test-summary { margin-top: 15px; font-weight: bold; }
+        .suite-title { font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Editor Test Results</h1>
+    <div id="test-results">
+        <p>Running tests...</p>
+    </div>
+
+    <!-- Mock necessary DOM elements from index.html that editor.js might expect on load -->
+    <div id="toolbar" style="display: none;">
+        <button id="add-node-btn"></button>
+        <button id="save-graph-btn"></button>
+        <button id="load-graph-btn"></button>
+        <button id="run-graph-btn"></button>
+    </div>
+    <div id="editor-area" style="display: none;">
+        <div id="editor-container">
+            <div id="node-canvas">
+                <svg id="connections-svg"></svg>
+            </div>
+        </div>
+        <div id="inspector">
+            <div id="inspector-content"></div>
+        </div>
+    </div>
+
+    <!-- Source file for the editor logic -->
+    <script src="../editor.js"></script>
+    <!-- Test definitions and assertions -->
+    <script src="editor_tests.js"></script>
+</body>
+</html>
