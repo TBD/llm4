@@ -1,112 +1,186 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const nodeCanvas = document.getElementById('node-canvas');
-    const addNodeBtn = document.getElementById('add-node-btn');
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const startButton = document.getElementById('startButton');
 
-    let nodes = [];
-    let nodeIdCounter = 0; // Simple counter for unique IDs
+    const player = {
+        x: canvas.width / 2 - 25,
+        y: canvas.height - 60,
+        width: 50,
+        height: 50,
+        speed: 5,
+        dx: 0
+    };
 
-    let draggedNode = null;
-    let isDragging = false;
-    let offsetX = 0;
-    let offsetY = 0;
+    let score = 0;
+    let gameRunning = false;
+    let bullets = [];
+    let invaders = [];
 
-    // Function to render all nodes on the canvas
-    function renderNodes() {
-        nodeCanvas.innerHTML = ''; // Clear canvas
+    const bullet = {
+        width: 5,
+        height: 10,
+        speed: 7
+    };
 
-        nodes.forEach(node => {
-            const nodeEl = document.createElement('div');
-            nodeEl.classList.add('node');
-            nodeEl.id = node.id;
-            nodeEl.style.left = `${node.x}px`;
-            nodeEl.style.top = `${node.y}px`;
-            nodeEl.textContent = node.name;
-            // nodeEl.style.cursor = 'grab'; // Set initial cursor, will be updated on drag
+    const invader = {
+        width: 40,
+        height: 30,
+        speed: 2
+    };
 
-            nodeCanvas.appendChild(nodeEl);
+    function createInvaders() {
+        invaders = [];
+        for (let i = 0; i < 5; i++) {
+            for (let j = 0; j < 10; j++) {
+                invaders.push({
+                    x: 50 + j * 70,
+                    y: 50 + i * 50,
+                    width: invader.width,
+                    height: invader.height
+                });
+            }
+        }
+    }
+
+    function drawPlayer() {
+        ctx.fillStyle = 'green';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    function drawBullets() {
+        ctx.fillStyle = 'white';
+        bullets.forEach(b => {
+            ctx.fillRect(b.x, b.y, bullet.width, bullet.height);
         });
     }
 
-    // Add Node functionality
-    addNodeBtn.addEventListener('click', () => {
-        nodeIdCounter++;
-        const newNode = {
-            id: `node-${nodeIdCounter}`,
-            name: `Node ${nodeIdCounter}`,
-            x: 50 + (nodes.length % 5) * 20, // Basic positioning, slightly offset new nodes
-            y: 50 + (Math.floor(nodes.length / 5)) * 20,
-            type: 'default'
-        };
-        nodes.push(newNode);
-        renderNodes();
-    });
+    function drawInvaders() {
+        ctx.fillStyle = 'red';
+        invaders.forEach(inv => {
+            ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
+        });
+    }
 
-    // Drag and Drop Functionality
-    nodeCanvas.addEventListener('mousedown', (event) => {
-        const targetNodeElement = event.target.closest('.node');
-        if (!targetNodeElement) return; // Click was not on a node
+    function clear() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
 
-        draggedNode = nodes.find(n => n.id === targetNodeElement.id);
-        if (!draggedNode) return;
+    function update() {
+        if (!gameRunning) return;
 
-        isDragging = true;
-        targetNodeElement.style.cursor = 'grabbing';
-        targetNodeElement.style.zIndex = 1000; // Bring dragged node to front
+        clear();
+        drawPlayer();
+        drawBullets();
+        drawInvaders();
 
-        // Calculate offset from mouse click to node's top-left corner
-        const nodeRect = targetNodeElement.getBoundingClientRect();
-        const canvasRect = nodeCanvas.getBoundingClientRect();
+        player.x += player.dx;
 
-        // offsetX = event.clientX - nodeRect.left; // Offset relative to node's own coordinate system
-        // offsetY = event.clientY - nodeRect.top;
-        
-        // Store offset relative to canvas, but based on node's current position
-        // This means offsetX is the difference between mouse click X on canvas and node's X
-        offsetX = event.clientX - canvasRect.left - draggedNode.x;
-        offsetY = event.clientY - canvasRect.top - draggedNode.y;
-
-
-    });
-
-    document.addEventListener('mousemove', (event) => {
-        if (!isDragging || !draggedNode) return;
-
-        const canvasRect = nodeCanvas.getBoundingClientRect();
-        // Calculate mouse position relative to the nodeCanvas
-        let mouseX = event.clientX - canvasRect.left;
-        let mouseY = event.clientY - canvasRect.top;
-
-        // New position for the node's top-left corner
-        let newX = mouseX - offsetX;
-        let newY = mouseY - offsetY;
-
-        // Optional: Constrain node position within canvas boundaries
-        // newX = Math.max(0, Math.min(newX, canvasRect.width - draggedNodeElement.offsetWidth));
-        // newY = Math.max(0, Math.min(newY, canvasRect.height - draggedNodeElement.offsetHeight));
-        // Note: draggedNodeElement.offsetWidth/Height would require getting the element again.
-        // For now, let's allow it to go out of bounds slightly for simplicity.
-
-        draggedNode.x = newX;
-        draggedNode.y = newY;
-
-        renderNodes(); // Re-render all nodes (can be optimized later)
-    });
-
-    document.addEventListener('mouseup', (event) => {
-        if (isDragging && draggedNode) {
-            const draggedNodeElement = document.getElementById(draggedNode.id);
-            if (draggedNodeElement) {
-                draggedNodeElement.style.cursor = 'grab';
-                draggedNodeElement.style.zIndex = ''; // Reset z-index
-            }
+        // Wall detection for player
+        if (player.x < 0) {
+            player.x = 0;
         }
-        
-        isDragging = false;
-        draggedNode = null;
-        // renderNodes(); // Ensure final state is rendered if not done in mousemove
-        // Already done in mousemove, so not strictly necessary here unless optimization changes
-    });
+        if (player.x + player.width > canvas.width) {
+            player.x = canvas.width - player.width;
+        }
 
-    // Initial render (if any nodes were pre-loaded, though we start empty)
-    renderNodes();
+        // Bullet movement
+        bullets.forEach((b, index) => {
+            b.y -= bullet.speed;
+            if (b.y < 0) {
+                bullets.splice(index, 1);
+            }
+        });
+
+        // Invader movement
+        let drop = false;
+        invaders.forEach(inv => {
+            inv.x += invader.speed;
+            if (inv.x + inv.width > canvas.width || inv.x < 0) {
+                drop = true;
+            }
+        });
+
+        if (drop) {
+            invader.speed *= -1;
+            invaders.forEach(inv => {
+                inv.y += 20;
+            });
+        }
+
+        // Collision detection
+        bullets.forEach((b, bIndex) => {
+            invaders.forEach((inv, iIndex) => {
+                if (
+                    b.x < inv.x + inv.width &&
+                    b.x + bullet.width > inv.x &&
+                    b.y < inv.y + inv.height &&
+                    b.y + bullet.height > inv.y
+                ) {
+                    bullets.splice(bIndex, 1);
+                    invaders.splice(iIndex, 1);
+                    score += 10;
+                    scoreElement.textContent = score;
+                }
+            });
+        });
+
+        // Game over
+        invaders.forEach(inv => {
+            if(inv.y + inv.height > player.y) {
+                gameRunning = false;
+                alert('Game Over!');
+            }
+        });
+
+        if (invaders.length === 0) {
+            gameRunning = false;
+            alert('You Win!');
+        }
+
+        requestAnimationFrame(update);
+    }
+
+    function movePlayer(e) {
+        if (e.key === 'ArrowRight' || e.key === 'Right') {
+            player.dx = player.speed;
+        } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+            player.dx = -player.speed;
+        } else if (e.key === ' ' || e.key === 'Spacebar') {
+            shoot();
+        }
+    }
+
+    function stopPlayer(e) {
+        if (
+            e.key === 'ArrowRight' ||
+            e.key === 'Right' ||
+            e.key === 'ArrowLeft' ||
+            e.key === 'Left'
+        ) {
+            player.dx = 0;
+        }
+    }
+
+    function shoot() {
+        bullets.push({
+            x: player.x + player.width / 2 - bullet.width / 2,
+            y: player.y
+        });
+    }
+
+    function startGame() {
+        gameRunning = true;
+        score = 0;
+        scoreElement.textContent = score;
+        player.x = canvas.width / 2 - 25;
+        bullets = [];
+        createInvaders();
+        update();
+    }
+
+    document.addEventListener('keydown', movePlayer);
+    document.addEventListener('keyup', stopPlayer);
+    startButton.addEventListener('click', startGame);
 });
