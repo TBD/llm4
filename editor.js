@@ -138,13 +138,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!fromNode || !toNode) return;
             
-            // Calculate connection points to match actual connection point positions
-            // Output point: node right edge + connection point offset
-            const fromX = fromNode.x + 150 + 6; // Right edge of node + 6px (connection point center)
-            const fromY = fromNode.y + 40; // Middle of node (50% of 80px height)
-            // Input point: node left edge - connection point offset  
-            const toX = toNode.x - 6; // Left edge of node - 6px (connection point center)
-            const toY = toNode.y + 40; // Middle of node (50% of 80px height)
+            // Calculate exact connection points based on measured positions
+            // From debug data: 
+            // - Node at (50,50) has output center at (219,101) = node.x + 169, node.y + 51
+            // - Node at (230,50) has input center at (233,101) = node.x + 3, node.y + 51
+            
+            const fromX = fromNode.x + 169; // Output connection point center X
+            const fromY = fromNode.y + 51;  // Output connection point center Y
+            const toX = toNode.x + 3;       // Input connection point center X  
+            const toY = toNode.y + 51;      // Input connection point center Y
             
             // Create path element
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -158,19 +160,22 @@ document.addEventListener('DOMContentLoaded', () => {
             svg.appendChild(path);
         });
         
-        // Add arrowhead marker
+        // Add improved arrowhead marker
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
         marker.setAttribute('id', 'arrowhead');
-        marker.setAttribute('markerWidth', '10');
-        marker.setAttribute('markerHeight', '7');
-        marker.setAttribute('refX', '9');
-        marker.setAttribute('refY', '3.5');
+        marker.setAttribute('markerWidth', '12');
+        marker.setAttribute('markerHeight', '8');
+        marker.setAttribute('refX', '11');
+        marker.setAttribute('refY', '4');
         marker.setAttribute('orient', 'auto');
+        marker.setAttribute('markerUnits', 'strokeWidth');
         
         const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+        polygon.setAttribute('points', '0 0, 12 4, 0 8');
         polygon.setAttribute('fill', '#007bff');
+        polygon.setAttribute('stroke', '#007bff');
+        polygon.setAttribute('stroke-width', '1');
         
         marker.appendChild(polygon);
         defs.appendChild(marker);
