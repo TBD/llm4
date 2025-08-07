@@ -37,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const scoreElement = document.getElementById('score');
     const startButton = document.getElementById('startButton');
 
+    let audioCtx;
+
     const player = {
         x: canvas.width / 2 - 25,
         y: canvas.height - 60,
@@ -161,6 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     b.y < inv.y + inv.height &&
                     b.y + bullet.height > inv.y
                 ) {
+                    playExplosionSound();
                     bullets.splice(bIndex, 1);
                     invaders.splice(iIndex, 1);
                     score += 10;
@@ -195,6 +198,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function playLaserSound() {
+        if (!audioCtx) return;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(1500, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function playExplosionSound() {
+        if (!audioCtx) return;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(500, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.2);
+    }
+
     function stopPlayer(e) {
         if (
             e.key === 'ArrowRight' ||
@@ -207,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function shoot() {
+        playLaserSound();
         bullets.push({
             x: player.x + player.width / 2 - bullet.width / 2,
             y: player.y
@@ -214,6 +256,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startGame() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
         gameRunning = true;
         score = 0;
         scoreElement.textContent = score;
