@@ -83,6 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isConnecting = true;
         connectionStart = { nodeId, pointType };
         nodeCanvas.style.cursor = 'crosshair';
+        // Prevent text selection during connection creation
+        document.body.style.userSelect = 'none';
+        document.body.style.webkitUserSelect = 'none';
     }
     
     function finishConnection(nodeId, pointType) {
@@ -103,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isConnecting = false;
         connectionStart = null;
         nodeCanvas.style.cursor = '';
+        // Restore text selection
+        document.body.style.userSelect = '';
+        document.body.style.webkitUserSelect = '';
         renderNodes();
     }
     
@@ -132,11 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!fromNode || !toNode) return;
             
-            // Calculate connection points
-            const fromX = fromNode.x + 150; // Right edge of node
-            const fromY = fromNode.y + 40; // Middle of node
-            const toX = toNode.x; // Left edge of node
-            const toY = toNode.y + 40; // Middle of node
+            // Calculate connection points to match actual connection point positions
+            // Output point: node right edge + connection point offset
+            const fromX = fromNode.x + 150 + 6; // Right edge of node + 6px (connection point center)
+            const fromY = fromNode.y + 40; // Middle of node (50% of 80px height)
+            // Input point: node left edge - connection point offset  
+            const toX = toNode.x - 6; // Left edge of node - 6px (connection point center)
+            const toY = toNode.y + 40; // Middle of node (50% of 80px height)
             
             // Create path element
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -235,7 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add event listeners for inspector controls
         document.getElementById('node-name').addEventListener('input', (e) => {
             selectedNode.name = e.target.value;
-            renderNodes(); // Update the node display
+            // Update only the node content without full re-render to preserve focus
+            const nodeElement = document.getElementById(selectedNode.id);
+            if (nodeElement) {
+                const nodeContent = nodeElement.querySelector('.node-content');
+                if (nodeContent) {
+                    nodeContent.textContent = selectedNode.name;
+                }
+            }
         });
         
         document.getElementById('node-type').addEventListener('change', (e) => {
@@ -311,8 +326,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const newNode = {
             id: `node-${nodeIdCounter}`,
             name: `Node ${nodeIdCounter}`,
-            x: 50 + (nodes.length % 5) * 20, // Basic positioning, slightly offset new nodes
-            y: 50 + (Math.floor(nodes.length / 5)) * 20,
+            x: 50 + (nodes.length % 3) * 180, // Space nodes horizontally by 180px
+            y: 50 + (Math.floor(nodes.length / 3)) * 120, // Space node rows by 120px
             type: 'default',
             properties: {
                 description: '',
@@ -401,6 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
             isConnecting = false;
             connectionStart = null;
             nodeCanvas.style.cursor = '';
+            // Restore text selection
+            document.body.style.userSelect = '';
+            document.body.style.webkitUserSelect = '';
         }
         
         isDragging = false;
