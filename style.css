@@ -62,22 +62,151 @@ body {
     cursor: grab;
     user-select: none; /* Prevent text selection when dragging */
     box-shadow: 2px 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
-/* Basic styling for the button in the toolbar */
-#add-node-btn {
+.node.selected {
+    border-color: #007bff;
+    border-width: 2px;
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+}
+
+.node-content {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.node-delete-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+}
+
+.node:hover .node-delete-btn {
+    display: block;
+}
+
+/* Node type styling */
+.node[data-type="input"] { border-left: 4px solid #28a745; }
+.node[data-type="output"] { border-left: 4px solid #dc3545; }
+.node[data-type="processing"] { border-left: 4px solid #ffc107; }
+.node[data-type="llm"] { border-left: 4px solid #6f42c1; }
+
+/* Connection points */
+.connection-point {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #007bff;
+    border: 2px solid #fff;
+    cursor: crosshair;
+    z-index: 10;
+}
+
+.connection-point.output {
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.connection-point.input {
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.connection-point:hover {
+    background-color: #0056b3;
+    transform: translateY(-50%) scale(1.2);
+}
+
+/* Basic styling for the buttons in the toolbar */
+#add-node-btn, #save-btn, #load-btn {
     padding: 8px 15px;
     background-color: #007bff;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    margin-right: 10px;
 }
 
-#add-node-btn:hover {
+#add-node-btn:hover, #save-btn:hover, #load-btn:hover {
     background-color: #0056b3;
+}
+
+#save-btn {
+    background-color: #28a745;
+}
+
+#save-btn:hover {
+    background-color: #218838;
+}
+
+#load-btn {
+    background-color: #17a2b8;
+}
+
+#load-btn:hover {
+    background-color: #138496;
 }
 
 h1, h2 {
     margin-top: 0; /* Remove default top margin for headings */
+}
+
+/* Inspector styling */
+.inspector-section {
+    margin-bottom: 15px;
+}
+
+.inspector-section label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.inspector-section input,
+.inspector-section select,
+.inspector-section textarea {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+.inspector-section textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.danger-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.danger-btn:hover {
+    background-color: #c82333;
 }
