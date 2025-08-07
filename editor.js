@@ -1,4 +1,37 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const playerSprite = [
+        [0,0,0,1,1,0,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1,1],
+        [0,0,1,0,0,1,0,0],
+        [0,1,0,0,0,0,1,0],
+        [1,0,0,0,0,0,0,1]
+    ];
+
+    const invaderSprite = [
+        [0,0,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1,1],
+        [0,1,0,1,1,0,1,0],
+        [0,0,1,0,0,1,0,0],
+        [0,1,0,0,0,0,1,0],
+        [1,0,1,0,0,1,0,1]
+    ];
+
+    const bulletSprite = [
+        [0,0,0,1,1,0,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,0,1,1,1,1,0,0],
+        [0,0,0,1,1,0,0,0],
+        [0,0,0,1,1,0,0,0],
+        [0,0,0,1,1,0,0,0]
+    ];
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreElement = document.getElementById('score');
@@ -44,22 +77,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawSprite(sprite, x, y, width, height, color) {
+        ctx.fillStyle = color;
+        const pixelWidth = width / 8;
+        const pixelHeight = height / 8;
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (sprite[i][j] === 1) {
+                    ctx.fillRect(x + j * pixelWidth, y + i * pixelHeight, pixelWidth, pixelHeight);
+                }
+            }
+        }
+    }
+
     function drawPlayer() {
-        ctx.fillStyle = 'green';
-        ctx.fillRect(player.x, player.y, player.width, player.height);
+        drawSprite(playerSprite, player.x, player.y, player.width, player.height, 'green');
     }
 
     function drawBullets() {
-        ctx.fillStyle = 'white';
         bullets.forEach(b => {
-            ctx.fillRect(b.x, b.y, bullet.width, bullet.height);
+            drawSprite(bulletSprite, b.x, b.y, bullet.width, bullet.height, 'white');
         });
     }
 
     function drawInvaders() {
-        ctx.fillStyle = 'red';
         invaders.forEach(inv => {
-            ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
+            drawSprite(invaderSprite, inv.x, inv.y, inv.width, inv.height, 'red');
         });
     }
 
@@ -128,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Game over
         invaders.forEach(inv => {
-            if(inv.y + inv.height > player.y) {
+            if (inv.y + inv.height > player.y) {
                 gameRunning = false;
                 alert('Game Over!');
             }
@@ -180,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         update();
     }
 
+    startButton.addEventListener('click', startGame);
     document.addEventListener('keydown', movePlayer);
     document.addEventListener('keyup', stopPlayer);
-    startButton.addEventListener('click', startGame);
 });
