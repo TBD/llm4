@@ -2,6 +2,8 @@
 <html>
 
 <head>
+  <meta charset="utf-8">
+
   <title>guides</title>
   <style>
     body {
@@ -45,17 +47,141 @@
       background: #19f;
       border-radius: 8px;
     }
+
+    .alignment-toolbar {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px;
+      display: none;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    .align-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 8px;
+      border: none;
+      background: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #333;
+      transition: background-color 0.2s;
+      min-width: 60px;
+    }
+
+    .align-btn:hover {
+      background: rgba(25, 159, 255, 0.1);
+      color: #19f;
+    }
+
+    .align-btn:active {
+      background: rgba(25, 159, 255, 0.2);
+    }
+
+    .align-icon {
+      font-size: 14px;
+      margin-bottom: 2px;
+      user-select: none;
+    }
+
+    .align-label {
+      font-size: 10px;
+      text-align: center;
+      line-height: 1;
+      user-select: none;
+    }
+
+    /* Guide styles */
+    .guide-line {
+      position: absolute;
+      border: 2px dashed #19f;
+      z-index: 999;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .guide-vertical {
+      width: 2px;
+      height: 100%;
+      border-left: 2px dashed #19f;
+      border-right: none;
+      border-top: none;
+      border-bottom: none;
+    }
+
+    .guide-horizontal {
+      height: 2px;
+      width: 100%;
+      border-top: 2px dashed #19f;
+      border-bottom: none;
+      border-left: none;
+      border-right: none;
+    }
   </style>
 </head>
 
 <body>
   <snapping-canvas>
-    <div class="rect" style="left:90px;top:80px;width:180px;height:120px"><div class="resize-handle"></div></div>
-    <div class="rect" style="left:320px;top:200px;width:180px;height:120px"><div class="resize-handle"></div></div>
-    <div class="rect" style="left:550px;top:200px;width:180px;height:120px"><div class="resize-handle"></div></div>
+    <div class="alignment-toolbar">
+      <button class="align-btn" data-action="align-left">
+        <div class="align-icon">←</div>
+        <div class="align-label">Left</div>
+      </button>
+      <button class="align-btn" data-action="align-center">
+        <div class="align-icon">↔</div>
+        <div class="align-label">Center</div>
+      </button>
+      <button class="align-btn" data-action="align-right">
+        <div class="align-icon">→</div>
+        <div class="align-label">Right</div>
+      </button>
+      <button class="align-btn" data-action="align-top">
+        <div class="align-icon">↑</div>
+        <div class="align-label">Top</div>
+      </button>
+      <button class="align-btn" data-action="align-middle">
+        <div class="align-icon">↕</div>
+        <div class="align-label">Middle</div>
+      </button>
+      <button class="align-btn" data-action="align-bottom">
+        <div class="align-icon">↓</div>
+        <div class="align-label">Bottom</div>
+      </button>
+      <button class="align-btn" data-action="distribute-h">
+        <div class="align-icon">⇄</div>
+        <div class="align-label">Dist H</div>
+      </button>
+      <button class="align-btn" data-action="distribute-v">
+        <div class="align-icon">⇅</div>
+        <div class="align-label">Dist V</div>
+      </button>
+    </div>
+    <div class="rect" style="left:90px;top:80px;width:180px;height:120px">
+      <div class="resize-handle"></div>
+    </div>
+    <div class="rect" style="left:320px;top:200px;width:180px;height:120px">
+      <div class="resize-handle"></div>
+    </div>
+    <div class="rect" style="left:550px;top:200px;width:180px;height:120px">
+      <div class="resize-handle"></div>
+    </div>
   </snapping-canvas>
 
-  <div id="help" style="position: absolute; bottom: 10px; left: 30%; transform: translateX(-30%); color: #ccc; font-size: 0.8em; pointer-events: none;">double-click rect: random color | H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas</div>
+  <div id="help"
+    style="position: absolute; bottom: 10px; left: 30%; transform: translateX(-30%); color: #ccc; font-size: 0.8em; pointer-events: none;">
+    double-click rect: random color | H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate
+    selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select |
+    Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align</div>
 
   <script src="guides-element.js"></script>
 </body>

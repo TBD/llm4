@@ -269,6 +269,7 @@ class SnappingCanvas extends HTMLElement {
     this.marqueeStartY = 0;
     this.marqueeElement = null;
     this.dragOffsets = []; // Store relative positions for multi-drag
+    this.alignmentGuides = []; // Store active alignment guides
   }
 
   connectedCallback() {
@@ -276,12 +277,23 @@ class SnappingCanvas extends HTMLElement {
     this.guides = document.createElement('snapping-guides');
     this.appendChild(this.guides);
 
+    // Get toolbar reference
+    this.toolbar = this.querySelector('.alignment-toolbar');
+
     // Attach events
     this.addEventListener('mousedown', this.handleMouseDown.bind(this));
     this.addEventListener('dblclick', this.handleDoubleClick.bind(this));
     document.addEventListener('mousemove', this.handleMouseMove.bind(this));
     document.addEventListener('mouseup', this.handleMouseUp.bind(this));
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
+
+    // Toolbar button events
+    if (this.toolbar) {
+      this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
+    }
+
+    // Initialize toolbar visibility
+    this.updateToolbarVisibility();
   }
 
   handleMouseDown(e) {
@@ -314,6 +326,10 @@ class SnappingCanvas extends HTMLElement {
         this.dragging = rect;
         this.offsetX = e.offsetX;
         this.offsetY = e.offsetY;
+
+        // Clear any existing guides before starting multi-drag
+        this.guides.hide();
+        this.clearAlignmentGuides();
 
         // Store initial positions for all selected rectangles
         this.dragOffsets = this.selectedRects.map(selectedRect => ({
@@ -357,26 +373,30 @@ class SnappingCanvas extends HTMLElement {
       const deltaX = (e.pageX - this.offsetX) - primaryOffset.initialLeft;
       const deltaY = (e.pageY - this.offsetY) - primaryOffset.initialTop;
 
-      // Move all selected rectangles by the same delta
-      this.dragOffsets.forEach(offset => {
-        let newLeft = offset.initialLeft + deltaX;
-        let newTop = offset.initialTop + deltaY;
+      // Calculate new position for primary rectangle
+      let newLeft = primaryOffset.initialLeft + deltaX;
+      let newTop = primaryOffset.initialTop + deltaY;
 
-        // Apply snapping to the primary rectangle only, then apply same delta to others
-        if (offset.rect === this.dragging) {
-          const result = this.guides.snapDrag(newLeft, newTop, offset.rect.offsetWidth, offset.rect.offsetHeight, this.otherRects);
-          newLeft = result.left;
-          newTop = result.top;
-          // Adjust delta based on snapping
-          const snappedDeltaX = newLeft - offset.initialLeft;
-          const snappedDeltaY = newTop - offset.initialTop;
+      // First apply existing snapping guides
+      const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
+      newLeft = snapResult.left;
+      newTop = snapResult.top;
 
-          // Apply snapped delta to all rectangles
-          this.dragOffsets.forEach(otherOffset => {
-            otherOffset.rect.style.left = (otherOffset.initialLeft + snappedDeltaX) + 'px';
-            otherOffset.rect.style.top = (otherOffset.initialTop + snappedDeltaY) + 'px';
-          });
-        }
+      // Then check for alignment guides and potentially snap
+      const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop);
+      if (alignmentResult.aligned) {
+        newLeft = alignmentResult.left;
+        newTop = alignmentResult.top;
+      }
+
+      // Adjust delta based on final position
+      const finalDeltaX = newLeft - primaryOffset.initialLeft;
+      const finalDeltaY = newTop - primaryOffset.initialTop;
+
+      // Apply final delta to all rectangles
+      this.dragOffsets.forEach(otherOffset => {
+        otherOffset.rect.style.left = (otherOffset.initialLeft + finalDeltaX) + 'px';
+        otherOffset.rect.style.top = (otherOffset.initialTop + finalDeltaY) + 'px';
       });
 
       this.showGuides();
@@ -407,6 +427,7 @@ class SnappingCanvas extends HTMLElement {
       });
     }
     this.clearGuides();
+    this.clearAlignmentGuides();
     document.body.style.userSelect = '';
     document.body.style.webkitUserSelect = '';
     this.dragging = null;
@@ -418,6 +439,19 @@ class SnappingCanvas extends HTMLElement {
     if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       this.selectAll();
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey) {
+      // Distribution (Ctrl/Cmd + Shift + H/V)
+      if (this.selectedRects.length < 3) return;
+      switch (e.key.toLowerCase()) {
+        case 'h':
+          e.preventDefault();
+          this.distributeSelectionHorizontally();
+          break;
+        case 'v':
+          e.preventDefault();
+          this.distributeSelectionVertically();
+          break;
+      }
     } else if (e.key === 'h' || e.key === 'H') {
       this.guides.addHorizontalGuide(this.mouseY);
     } else if (e.key === 'v' || e.key === 'V') {
@@ -502,7 +536,9 @@ class SnappingCanvas extends HTMLElement {
 
   updateOtherRects() {
     const current = this.dragging || this.resizing;
-    this.otherRects = Array.from(this.querySelectorAll('.rect')).filter(r => r !== current).map(r => ({
+    // When dragging multiple selected rectangles, exclude all selected rectangles from snapping
+    const excludeRects = this.selectedRects.length > 1 ? this.selectedRects : [current];
+    this.otherRects = Array.from(this.querySelectorAll('.rect')).filter(r => !excludeRects.includes(r)).map(r => ({
       left: parseFloat(r.style.left),
       top: parseFloat(r.style.top),
       width: r.offsetWidth,
@@ -533,6 +569,7 @@ class SnappingCanvas extends HTMLElement {
     if (!this.selectedRects.includes(rect)) {
       this.selectedRects.push(rect);
       this.updateSelectionVisuals();
+      this.updateToolbarVisibility();
     }
   }
 
@@ -541,28 +578,39 @@ class SnappingCanvas extends HTMLElement {
     if (index > -1) {
       this.selectedRects.splice(index, 1);
       this.updateSelectionVisuals();
+      this.updateToolbarVisibility();
     }
   }
 
   selectAll() {
     this.selectedRects = Array.from(this.querySelectorAll('.rect'));
     this.updateSelectionVisuals();
+    this.updateToolbarVisibility();
   }
 
   deselectAll() {
     this.selectedRects = [];
     this.updateSelectionVisuals();
+    this.updateToolbarVisibility();
+  }
+
+  updateToolbarVisibility() {
+    if (this.toolbar) {
+      if (this.selectedRects.length > 1) {
+        this.toolbar.style.display = 'flex';
+      } else {
+        this.toolbar.style.display = 'none';
+      }
+    }
   }
 
   updateSelectionVisuals() {
     // Update all rects
     this.querySelectorAll('.rect').forEach(rect => {
       if (this.selectedRects.includes(rect)) {
-        rect.style.borderColor = '#ff6b35';
-        rect.style.borderWidth = '3px';
+        rect.style.boxShadow = '0 0 100px -20px #19f';
       } else {
-        rect.style.borderColor = '#19f';
-        rect.style.borderWidth = '2px';
+        rect.style.boxShadow = 'none';
       }
     });
   }
@@ -619,6 +667,7 @@ class SnappingCanvas extends HTMLElement {
       }
     });
     this.updateSelectionVisuals();
+    this.updateToolbarVisibility();
   }
 
   rectsIntersect(r1, r2) {
@@ -629,6 +678,271 @@ class SnappingCanvas extends HTMLElement {
     if (this.marqueeElement) {
       this.marqueeElement.remove();
       this.marqueeElement = null;
+    }
+  }
+
+  // Alignment Guide Methods
+  createAlignmentGuide(type, position) {
+    const guide = document.createElement('div');
+    guide.className = 'guide-line';
+
+    if (type === 'vertical') {
+      guide.classList.add('guide-vertical');
+      guide.style.left = position + 'px';
+    } else if (type === 'horizontal') {
+      guide.classList.add('guide-horizontal');
+      guide.style.top = position + 'px';
+    }
+
+    this.appendChild(guide);
+    this.alignmentGuides.push(guide);
+    return guide;
+  }
+
+  clearAlignmentGuides() {
+    this.alignmentGuides.forEach(guide => guide.remove());
+    this.alignmentGuides = [];
+  }
+
+  checkAlignmentGuides(draggedRect, newLeft, newTop) {
+    this.clearAlignmentGuides();
+
+    const draggedBounds = {
+      left: newLeft,
+      top: newTop,
+      right: newLeft + draggedRect.offsetWidth,
+      bottom: newTop + draggedRect.offsetHeight
+    };
+
+    const alignmentThreshold = 8; // pixels
+    let snappedLeft = newLeft;
+    let snappedTop = newTop;
+    let foundAlignment = false;
+
+    // Check against all other rectangles (exclude all selected rectangles since they're moving together)
+    this.querySelectorAll('.rect').forEach(otherRect => {
+      if (this.selectedRects.includes(otherRect)) return;
+
+      const otherBounds = {
+        left: parseFloat(otherRect.style.left),
+        top: parseFloat(otherRect.style.top),
+        right: parseFloat(otherRect.style.left) + otherRect.offsetWidth,
+        bottom: parseFloat(otherRect.style.top) + otherRect.offsetHeight
+      };
+
+      // Check vertical alignments (left/right edges)
+      // Dragged right edge to other left edge
+      if (Math.abs(draggedBounds.right - otherBounds.left) <= alignmentThreshold) {
+        this.createAlignmentGuide('vertical', otherBounds.left);
+        snappedLeft = otherBounds.left - draggedRect.offsetWidth;
+        foundAlignment = true;
+      }
+      // Dragged left edge to other right edge
+      else if (Math.abs(draggedBounds.left - otherBounds.right) <= alignmentThreshold) {
+        this.createAlignmentGuide('vertical', otherBounds.right);
+        snappedLeft = otherBounds.right;
+        foundAlignment = true;
+      }
+      // Dragged left edge to other left edge
+      else if (Math.abs(draggedBounds.left - otherBounds.left) <= alignmentThreshold) {
+        this.createAlignmentGuide('vertical', otherBounds.left);
+        snappedLeft = otherBounds.left;
+        foundAlignment = true;
+      }
+      // Dragged right edge to other right edge
+      else if (Math.abs(draggedBounds.right - otherBounds.right) <= alignmentThreshold) {
+        this.createAlignmentGuide('vertical', otherBounds.right);
+        snappedLeft = otherBounds.right - draggedRect.offsetWidth;
+        foundAlignment = true;
+      }
+
+      // Check horizontal alignments (top/bottom edges)
+      // Dragged bottom edge to other top edge
+      if (Math.abs(draggedBounds.bottom - otherBounds.top) <= alignmentThreshold) {
+        this.createAlignmentGuide('horizontal', otherBounds.top);
+        snappedTop = otherBounds.top - draggedRect.offsetHeight;
+        foundAlignment = true;
+      }
+      // Dragged top edge to other bottom edge
+      else if (Math.abs(draggedBounds.top - otherBounds.bottom) <= alignmentThreshold) {
+        this.createAlignmentGuide('horizontal', otherBounds.bottom);
+        snappedTop = otherBounds.bottom;
+        foundAlignment = true;
+      }
+      // Dragged top edge to other top edge
+      else if (Math.abs(draggedBounds.top - otherBounds.top) <= alignmentThreshold) {
+        this.createAlignmentGuide('horizontal', otherBounds.top);
+        snappedTop = otherBounds.top;
+        foundAlignment = true;
+      }
+      // Dragged bottom edge to other bottom edge
+      else if (Math.abs(draggedBounds.bottom - otherBounds.bottom) <= alignmentThreshold) {
+        this.createAlignmentGuide('horizontal', otherBounds.bottom);
+        snappedTop = otherBounds.bottom - draggedRect.offsetHeight;
+        foundAlignment = true;
+      }
+    });
+
+    // Return the snapped position if alignment was found
+    if (foundAlignment) {
+      return { left: snappedLeft, top: snappedTop, aligned: true };
+    }
+
+    return { left: newLeft, top: newTop, aligned: false };
+  }
+
+  // Alignment and Distribution Methods
+  getSelectionBounds() {
+    if (this.selectedRects.length === 0) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    this.selectedRects.forEach(rect => {
+      const left = parseFloat(rect.style.left);
+      const top = parseFloat(rect.style.top);
+      const right = left + rect.offsetWidth;
+      const bottom = top + rect.offsetHeight;
+
+      minX = Math.min(minX, left);
+      minY = Math.min(minY, top);
+      maxX = Math.max(maxX, right);
+      maxY = Math.max(maxY, bottom);
+    });
+
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+  }
+
+  // Alignment methods for selected objects
+  alignSelectionLeft() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    this.selectedRects.forEach(rect => {
+      rect.style.left = bounds.minX + 'px';
+    });
+  }
+
+  alignSelectionCenter() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    this.selectedRects.forEach(rect => {
+      const rectCenterX = rect.offsetWidth / 2;
+      const newLeft = centerX - rectCenterX;
+      rect.style.left = newLeft + 'px';
+    });
+  }
+
+  alignSelectionRight() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    this.selectedRects.forEach(rect => {
+      const newLeft = bounds.maxX - rect.offsetWidth;
+      rect.style.left = newLeft + 'px';
+    });
+  }
+
+  alignSelectionTop() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    this.selectedRects.forEach(rect => {
+      rect.style.top = bounds.minY + 'px';
+    });
+  }
+
+  alignSelectionMiddle() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    this.selectedRects.forEach(rect => {
+      const rectCenterY = rect.offsetHeight / 2;
+      const newTop = centerY - rectCenterY;
+      rect.style.top = newTop + 'px';
+    });
+  }
+
+  alignSelectionBottom() {
+    if (this.selectedRects.length < 2) return;
+    const bounds = this.getSelectionBounds();
+    this.selectedRects.forEach(rect => {
+      const newTop = bounds.maxY - rect.offsetHeight;
+      rect.style.top = newTop + 'px';
+    });
+  }
+
+  // Distribution (evenly space selected objects)
+  distributeSelectionHorizontally() {
+    if (this.selectedRects.length < 3) return;
+
+    // Sort by left position
+    const sortedRects = [...this.selectedRects].sort((a, b) =>
+      parseFloat(a.style.left) - parseFloat(b.style.left)
+    );
+
+    const bounds = this.getSelectionBounds();
+    const totalWidth = bounds.width;
+    const totalRectsWidth = sortedRects.reduce((sum, rect) => sum + rect.offsetWidth, 0);
+    const availableSpace = totalWidth - totalRectsWidth;
+    const gap = availableSpace / (sortedRects.length - 1);
+
+    let currentX = bounds.minX;
+    sortedRects.forEach((rect, index) => {
+      rect.style.left = currentX + 'px';
+      currentX += rect.offsetWidth + gap;
+    });
+  }
+
+  distributeSelectionVertically() {
+    if (this.selectedRects.length < 3) return;
+
+    // Sort by top position
+    const sortedRects = [...this.selectedRects].sort((a, b) =>
+      parseFloat(a.style.top) - parseFloat(b.style.top)
+    );
+
+    const bounds = this.getSelectionBounds();
+    const totalHeight = bounds.height;
+    const totalRectsHeight = sortedRects.reduce((sum, rect) => sum + rect.offsetHeight, 0);
+    const availableSpace = totalHeight - totalRectsHeight;
+    const gap = availableSpace / (sortedRects.length - 1);
+
+    let currentY = bounds.minY;
+    sortedRects.forEach((rect, index) => {
+      rect.style.top = currentY + 'px';
+      currentY += rect.offsetHeight + gap;
+    });
+  }
+
+  handleToolbarClick(e) {
+    e.stopPropagation(); // Prevent event from bubbling up
+    const button = e.target.closest('.align-btn');
+    if (!button) return;
+
+    const action = button.dataset.action;
+    switch (action) {
+      case 'align-left':
+        this.alignSelectionLeft();
+        break;
+      case 'align-center':
+        this.alignSelectionCenter();
+        break;
+      case 'align-right':
+        this.alignSelectionRight();
+        break;
+      case 'align-top':
+        this.alignSelectionTop();
+        break;
+      case 'align-middle':
+        this.alignSelectionMiddle();
+        break;
+      case 'align-bottom':
+        this.alignSelectionBottom();
+        break;
+      case 'distribute-h':
+        this.distributeSelectionHorizontally();
+        break;
+      case 'distribute-v':
+        this.distributeSelectionVertically();
+        break;
     }
   }
 

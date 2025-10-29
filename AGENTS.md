@@ -1,0 +1,3 @@
+- everything should be a HTML custom element
+- index.html should contain only custom elements
+- optimize for speed and size
