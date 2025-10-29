@@ -277,8 +277,147 @@ class SnappingCanvas extends HTMLElement {
     this.guides = document.createElement('snapping-guides');
     this.appendChild(this.guides);
 
-    // Get toolbar reference
-    this.toolbar = this.querySelector('.alignment-toolbar');
+    // Create and append styles for alignment toolbar
+    const style = document.createElement('style');
+    style.textContent = `
+      .alignment-toolbar {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+        display: none;
+        gap: 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        font-family: inherit;
+        font-size: 12px;
+      }
+
+      .align-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 6px 8px;
+        border: none;
+        background: none;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #333;
+        transition: background-color 0.2s;
+        min-width: 60px;
+      }
+
+      .align-btn:hover {
+        background: rgba(25, 159, 255, 0.1);
+        color: #19f;
+      }
+
+      .align-btn:active {
+        background: rgba(25, 159, 255, 0.2);
+      }
+
+      .align-icon {
+        font-size: 14px;
+        margin-bottom: 2px;
+        user-select: none;
+      }
+
+      .align-label {
+        font-size: 10px;
+        text-align: center;
+        line-height: 1;
+        user-select: none;
+      }
+    `;
+    this.appendChild(style);
+
+    // Create toolbar
+    this.toolbar = document.createElement('div');
+    this.toolbar.className = 'alignment-toolbar';
+    this.toolbar.innerHTML = `
+      <button class="align-btn" data-action="align-left">
+        <div class="align-icon">←</div>
+        <div class="align-label">Left</div>
+      </button>
+      <button class="align-btn" data-action="align-center">
+        <div class="align-icon">↔</div>
+        <div class="align-label">Center</div>
+      </button>
+      <button class="align-btn" data-action="align-right">
+        <div class="align-icon">→</div>
+        <div class="align-label">Right</div>
+      </button>
+      <button class="align-btn" data-action="align-top">
+        <div class="align-icon">↑</div>
+        <div class="align-label">Top</div>
+      </button>
+      <button class="align-btn" data-action="align-middle">
+        <div class="align-icon">↕</div>
+        <div class="align-label">Middle</div>
+      </button>
+      <button class="align-btn" data-action="align-bottom">
+        <div class="align-icon">↓</div>
+        <div class="align-label">Bottom</div>
+      </button>
+      <button class="align-btn" data-action="distribute-h">
+        <div class="align-icon">⇄</div>
+        <div class="align-label">Dist H</div>
+      </button>
+      <button class="align-btn" data-action="distribute-v">
+        <div class="align-icon">⇅</div>
+        <div class="align-label">Dist V</div>
+      </button>
+    `;
+    this.appendChild(this.toolbar);
+
+    // Add styles for help
+    style.textContent += `
+      .help-button {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        color: #333;
+      }
+
+      .help-text {
+        position: absolute;
+        bottom: 40px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        max-width: 300px;
+        display: none;
+        z-index: 1001;
+      }
+    `;
+
+    // Create help button
+    this.helpButton = document.createElement('button');
+    this.helpButton.className = 'help-button';
+    this.helpButton.textContent = 'Help';
+    this.helpButton.addEventListener('click', () => {
+      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
+    });
+    this.appendChild(this.helpButton);
+
+    // Create help text
+    this.helpText = document.createElement('div');
+    this.helpText.className = 'help-text';
+    this.helpText.textContent = 'double-click rect: random color | H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
+    this.appendChild(this.helpText);
 
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
@@ -288,9 +427,7 @@ class SnappingCanvas extends HTMLElement {
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
 
     // Toolbar button events
-    if (this.toolbar) {
-      this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
-    }
+    this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
 
     // Initialize toolbar visibility
     this.updateToolbarVisibility();
