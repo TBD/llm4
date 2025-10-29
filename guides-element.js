@@ -263,6 +263,12 @@ class SnappingCanvas extends HTMLElement {
     this.mouseY = 0;
     this.otherRects = [];
     this.bordersVisible = true;
+    this.selectedRects = [];
+    this.marqueeSelecting = false;
+    this.marqueeStartX = 0;
+    this.marqueeStartY = 0;
+    this.marqueeElement = null;
+    this.dragOffsets = []; // Store relative positions for multi-drag
   }
 
   connectedCallback() {
@@ -289,14 +295,47 @@ class SnappingCanvas extends HTMLElement {
       this.startH = rect.offsetHeight;
       this.updateOtherRects();
     } else if (e.target.classList.contains('rect')) {
-      // Dragging
-      this.dragging = e.target;
-      this.offsetX = e.offsetX;
-      this.offsetY = e.offsetY;
-      this.initialLeft = parseFloat(this.dragging.style.left);
-      this.initialTop = parseFloat(this.dragging.style.top);
-      this.dragging.style.zIndex = 10;
-      this.updateOtherRects();
+      // Dragging or selecting
+      const rect = e.target;
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        // Multi-select: toggle selection
+        if (this.selectedRects.includes(rect)) {
+          this.deselectRect(rect);
+        } else {
+          this.selectRect(rect);
+        }
+      } else {
+        // Single select or start dragging
+        if (!this.selectedRects.includes(rect)) {
+          this.deselectAll();
+          this.selectRect(rect);
+        }
+        // Start dragging all selected rectangles
+        this.dragging = rect;
+        this.offsetX = e.offsetX;
+        this.offsetY = e.offsetY;
+
+        // Store initial positions for all selected rectangles
+        this.dragOffsets = this.selectedRects.map(selectedRect => ({
+          rect: selectedRect,
+          initialLeft: parseFloat(selectedRect.style.left),
+          initialTop: parseFloat(selectedRect.style.top)
+        }));
+
+        // Bring all selected to front
+        this.selectedRects.forEach(selectedRect => {
+          selectedRect.style.zIndex = 10;
+        });
+
+        this.updateOtherRects();
+      }
+    } else if (this.isEmptyClick(e.target)) {
+      // Empty click: start marquee selection or deselect
+      this.deselectAll();
+      this.marqueeSelecting = true;
+      this.marqueeStartX = e.clientX;
+      this.marqueeStartY = e.clientY;
+      this.createMarqueeElement();
     }
     document.body.style.userSelect = 'none';
     document.body.style.webkitUserSelect = 'none';
@@ -305,19 +344,43 @@ class SnappingCanvas extends HTMLElement {
   handleMouseMove(e) {
     this.mouseX = e.clientX;
     this.mouseY = e.clientY;
-    if (this.dragging) {
+    if (this.marqueeSelecting) {
+      this.updateMarquee(e.clientX, e.clientY);
+    } else if (this.dragging) {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
-      let left = e.pageX - this.offsetX;
-      let top = e.pageY - this.offsetY;
-      const result = this.guides.snapDrag(left, top, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
-      left = result.left;
-      top = result.top;
+
+      // Calculate the delta from the initial position of the primary dragged rect
+      const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
+      if (!primaryOffset) return;
+
+      const deltaX = (e.pageX - this.offsetX) - primaryOffset.initialLeft;
+      const deltaY = (e.pageY - this.offsetY) - primaryOffset.initialTop;
+
+      // Move all selected rectangles by the same delta
+      this.dragOffsets.forEach(offset => {
+        let newLeft = offset.initialLeft + deltaX;
+        let newTop = offset.initialTop + deltaY;
+
+        // Apply snapping to the primary rectangle only, then apply same delta to others
+        if (offset.rect === this.dragging) {
+          const result = this.guides.snapDrag(newLeft, newTop, offset.rect.offsetWidth, offset.rect.offsetHeight, this.otherRects);
+          newLeft = result.left;
+          newTop = result.top;
+          // Adjust delta based on snapping
+          const snappedDeltaX = newLeft - offset.initialLeft;
+          const snappedDeltaY = newTop - offset.initialTop;
+
+          // Apply snapped delta to all rectangles
+          this.dragOffsets.forEach(otherOffset => {
+            otherOffset.rect.style.left = (otherOffset.initialLeft + snappedDeltaX) + 'px';
+            otherOffset.rect.style.top = (otherOffset.initialTop + snappedDeltaY) + 'px';
+          });
+        }
+      });
+
       this.showGuides();
-      this.dragging.style.left = left + 'px';
-      this.dragging.style.top = top + 'px';
-    }
-    if (this.resizing) {
+    } else if (this.resizing) {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
       let newW = Math.max(50, this.startW + (e.pageX - this.startX));
@@ -333,16 +396,29 @@ class SnappingCanvas extends HTMLElement {
   }
 
   handleMouseUp() {
-    if (this.dragging) this.dragging.style.zIndex = 1;
+    if (this.marqueeSelecting) {
+      this.marqueeSelecting = false;
+      this.removeMarquee();
+    }
+    if (this.dragging) {
+      // Reset z-index for all selected rectangles
+      this.selectedRects.forEach(rect => {
+        rect.style.zIndex = 1;
+      });
+    }
     this.clearGuides();
     document.body.style.userSelect = '';
     document.body.style.webkitUserSelect = '';
     this.dragging = null;
     this.resizing = null;
+    this.dragOffsets = [];
   }
 
   handleKeyDown(e) {
-    if (e.key === 'h' || e.key === 'H') {
+    if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      this.selectAll();
+    } else if (e.key === 'h' || e.key === 'H') {
       this.guides.addHorizontalGuide(this.mouseY);
     } else if (e.key === 'v' || e.key === 'V') {
       this.guides.addVerticalGuide(this.mouseX);
@@ -357,32 +433,69 @@ class SnappingCanvas extends HTMLElement {
         const handle = rect.querySelector('.resize-handle');
         if (handle) handle.style.display = handleDisplay;
       });
+      this.updateSelectionVisuals(); // Update selection visuals too
     } else if ((e.key === 'e' || e.key === 'E') && this.dragging) {
-      this.dragging.remove();
+      // Remove all selected rectangles
+      this.selectedRects.forEach(rect => rect.remove());
+      this.selectedRects = [];
       this.clearGuides();
       document.body.style.userSelect = '';
       document.body.style.webkitUserSelect = '';
       this.dragging = null;
+      this.dragOffsets = [];
     } else if ((e.key === 'd' || e.key === 'D') && this.dragging) {
-      const newRect = document.createElement('div');
-      newRect.className = 'rect';
-      newRect.style.width = this.dragging.offsetWidth + 'px';
-      newRect.style.height = this.dragging.offsetHeight + 'px';
-      newRect.style.left = (this.mouseX - this.offsetX) + 'px';
-      newRect.style.top = (this.mouseY - this.offsetY) + 'px';
-      newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
-      const handle = document.createElement('div');
-      handle.className = 'resize-handle';
-      if (!this.bordersVisible) handle.style.display = 'none';
-      newRect.appendChild(handle);
-      this.appendChild(newRect);
-      // Move old back
-      this.dragging.style.left = this.initialLeft + 'px';
-      this.dragging.style.top = this.initialTop + 'px';
-      this.dragging.style.zIndex = 1;
-      // Start dragging new
-      this.dragging = newRect;
-      this.dragging.style.zIndex = 10;
+      // Duplicate all selected rectangles
+      const newRects = [];
+      const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
+
+      this.dragOffsets.forEach(offset => {
+        const newRect = document.createElement('div');
+        newRect.className = 'rect';
+        newRect.style.width = offset.rect.offsetWidth + 'px';
+        newRect.style.height = offset.rect.offsetHeight + 'px';
+        newRect.style.backgroundColor = offset.rect.style.backgroundColor;
+        newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle';
+        if (!this.bordersVisible) handle.style.display = 'none';
+        newRect.appendChild(handle);
+        this.appendChild(newRect);
+        newRects.push(newRect);
+      });
+
+      // Position new rectangles at mouse position, maintaining relative positions
+      if (primaryOffset) {
+        const baseLeft = this.mouseX - this.offsetX;
+        const baseTop = this.mouseY - this.offsetY;
+
+        this.dragOffsets.forEach((offset, index) => {
+          const newRect = newRects[index];
+          const relativeLeft = offset.initialLeft - primaryOffset.initialLeft;
+          const relativeTop = offset.initialTop - primaryOffset.initialTop;
+
+          newRect.style.left = (baseLeft + relativeLeft) + 'px';
+          newRect.style.top = (baseTop + relativeTop) + 'px';
+        });
+      }
+
+      // Move old rectangles back to original positions
+      this.dragOffsets.forEach(offset => {
+        offset.rect.style.left = offset.initialLeft + 'px';
+        offset.rect.style.top = offset.initialTop + 'px';
+        offset.rect.style.zIndex = 1;
+      });
+
+      // Select and start dragging new rectangles
+      this.selectedRects = newRects;
+      this.updateSelectionVisuals();
+      this.dragging = newRects[0]; // Primary drag rect is the first one
+      this.dragOffsets = newRects.map(newRect => ({
+        rect: newRect,
+        initialLeft: parseFloat(newRect.style.left),
+        initialTop: parseFloat(newRect.style.top)
+      }));
+      this.selectedRects.forEach(rect => rect.style.zIndex = 10);
       this.updateOtherRects();
     }
   }
@@ -414,6 +527,109 @@ class SnappingCanvas extends HTMLElement {
     this.guides.setGuideX(null);
     this.guides.setGuideY(null);
     this.guides.hide();
+  }
+
+  selectRect(rect) {
+    if (!this.selectedRects.includes(rect)) {
+      this.selectedRects.push(rect);
+      this.updateSelectionVisuals();
+    }
+  }
+
+  deselectRect(rect) {
+    const index = this.selectedRects.indexOf(rect);
+    if (index > -1) {
+      this.selectedRects.splice(index, 1);
+      this.updateSelectionVisuals();
+    }
+  }
+
+  selectAll() {
+    this.selectedRects = Array.from(this.querySelectorAll('.rect'));
+    this.updateSelectionVisuals();
+  }
+
+  deselectAll() {
+    this.selectedRects = [];
+    this.updateSelectionVisuals();
+  }
+
+  updateSelectionVisuals() {
+    // Update all rects
+    this.querySelectorAll('.rect').forEach(rect => {
+      if (this.selectedRects.includes(rect)) {
+        rect.style.borderColor = '#ff6b35';
+        rect.style.borderWidth = '3px';
+      } else {
+        rect.style.borderColor = '#19f';
+        rect.style.borderWidth = '2px';
+      }
+    });
+  }
+
+  isEmptyClick(target) {
+    return target === this || target === this.guides || target.classList.contains('fixed-guide');
+  }
+
+  createMarqueeElement() {
+    this.marqueeElement = document.createElement('div');
+    Object.assign(this.marqueeElement.style, {
+      position: 'absolute',
+      border: '2px dashed #ff6b35',
+      backgroundColor: 'rgba(255, 107, 53, 0.1)',
+      pointerEvents: 'none',
+      zIndex: '1000'
+    });
+    this.appendChild(this.marqueeElement);
+  }
+
+  updateMarquee(x, y) {
+    if (!this.marqueeElement) return;
+
+    const startX = Math.min(this.marqueeStartX, x);
+    const startY = Math.min(this.marqueeStartY, y);
+    const width = Math.abs(x - this.marqueeStartX);
+    const height = Math.abs(y - this.marqueeStartY);
+
+    Object.assign(this.marqueeElement.style, {
+      left: startX + 'px',
+      top: startY + 'px',
+      width: width + 'px',
+      height: height + 'px'
+    });
+
+    // Select rectangles that intersect with marquee
+    const marqueeRect = {
+      left: startX,
+      top: startY,
+      right: startX + width,
+      bottom: startY + height
+    };
+
+    this.selectedRects = [];
+    this.querySelectorAll('.rect').forEach(rect => {
+      const rectBounds = rect.getBoundingClientRect();
+      if (this.rectsIntersect(marqueeRect, {
+        left: rectBounds.left,
+        top: rectBounds.top,
+        right: rectBounds.right,
+        bottom: rectBounds.bottom
+      })) {
+        this.selectedRects.push(rect);
+      }
+    });
+    this.updateSelectionVisuals();
+  }
+
+  rectsIntersect(r1, r2) {
+    return !(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom);
+  }
+
+  removeMarquee() {
+    if (this.marqueeElement) {
+      this.marqueeElement.remove();
+      this.marqueeElement = null;
+    }
   }
 
   handleDoubleClick(e) {
