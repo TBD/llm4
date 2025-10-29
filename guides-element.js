@@ -452,6 +452,18 @@ class SnappingCanvas extends HTMLElement {
         }
       `;
 
+      // Larger resize handles on mobile
+      const resizeStyle = document.createElement('style');
+      resizeStyle.textContent = `
+        .resize-handle {
+          width: 32px !important;
+          height: 32px !important;
+          right: -16px !important;
+          bottom: -16px !important;
+        }
+      `;
+      this.appendChild(resizeStyle);
+
       this.mobileToolbar = document.createElement('div');
       this.mobileToolbar.className = 'mobile-toolbar';
 
@@ -557,8 +569,8 @@ class SnappingCanvas extends HTMLElement {
       // Empty click: start marquee selection or deselect
       this.deselectAll();
       this.marqueeSelecting = true;
-      this.marqueeStartX = e.clientX;
-      this.marqueeStartY = e.clientY;
+      this.marqueeStartX = e.offsetX;
+      this.marqueeStartY = e.offsetY;
       this.createMarqueeElement();
     }
     document.body.style.userSelect = 'none';
@@ -572,7 +584,7 @@ class SnappingCanvas extends HTMLElement {
     this.currentOffsetX = e.offsetX;
     this.currentOffsetY = e.offsetY;
     if (this.marqueeSelecting) {
-      this.updateMarquee(e.clientX, e.clientY);
+      this.updateMarquee(e.offsetX, e.offsetY);
     } else if (this.dragging) {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
@@ -854,11 +866,12 @@ class SnappingCanvas extends HTMLElement {
     });
 
     // Select rectangles that intersect with marquee
+    const canvasBounds = this.getBoundingClientRect();
     const marqueeRect = {
-      left: startX,
-      top: startY,
-      right: startX + width,
-      bottom: startY + height
+      left: canvasBounds.left + startX,
+      top: canvasBounds.top + startY,
+      right: canvasBounds.left + startX + width,
+      bottom: canvasBounds.top + startY + height
     };
 
     this.selectedRects = [];
