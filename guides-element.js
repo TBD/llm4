@@ -281,10 +281,10 @@ class SnappingCanvas extends HTMLElement {
     this.toolbar = this.querySelector('.alignment-toolbar');
 
     // Attach events
-    this.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
     this.addEventListener('dblclick', this.handleDoubleClick.bind(this));
-    document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-    document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    document.addEventListener('pointermove', this.handlePointerMove.bind(this));
+    document.addEventListener('pointerup', this.handlePointerUp.bind(this));
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
 
     // Toolbar button events
@@ -296,7 +296,15 @@ class SnappingCanvas extends HTMLElement {
     this.updateToolbarVisibility();
   }
 
-  handleMouseDown(e) {
+
+
+  handlePointerDown(e) {
+    // Only handle primary pointer (left mouse or touch)
+    if (e.button !== 0) return;
+
+    // Capture the pointer for dragging outside bounds
+    this.setPointerCapture(e.pointerId);
+
     if (e.target.classList.contains('resize-handle')) {
       // Resizing
       const rect = e.target.parentElement;
@@ -357,7 +365,8 @@ class SnappingCanvas extends HTMLElement {
     document.body.style.webkitUserSelect = 'none';
   }
 
-  handleMouseMove(e) {
+  handlePointerMove(e) {
+
     this.mouseX = e.clientX;
     this.mouseY = e.clientY;
     if (this.marqueeSelecting) {
@@ -415,7 +424,7 @@ class SnappingCanvas extends HTMLElement {
     }
   }
 
-  handleMouseUp() {
+  handlePointerUp() {
     if (this.marqueeSelecting) {
       this.marqueeSelecting = false;
       this.removeMarquee();
