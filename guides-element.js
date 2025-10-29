@@ -419,6 +419,17 @@ class SnappingCanvas extends HTMLElement {
     this.helpText.textContent = 'H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
     this.appendChild(this.helpText);
 
+    // Help button for desktop
+    if (!('ontouchstart' in window)) {
+      this.helpButton = document.createElement('button');
+      this.helpButton.className = 'help-button';
+      this.helpButton.textContent = 'Help';
+      this.helpButton.addEventListener('click', () => {
+        this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
+      });
+      this.appendChild(this.helpButton);
+    }
+
     // Mobile toolbar
     if ('ontouchstart' in window) {
       style.textContent += `
@@ -815,7 +826,8 @@ class SnappingCanvas extends HTMLElement {
 
   updateToolbarVisibility() {
     if (this.toolbar) {
-      if (this.selectedRects.length > 1) {
+      const isMobile = 'ontouchstart' in window;
+      if (this.selectedRects.length > 1 || (isMobile && this.selectedRects.length > 0)) {
         this.toolbar.style.display = 'flex';
       } else {
         this.toolbar.style.display = 'none';
@@ -824,10 +836,12 @@ class SnappingCanvas extends HTMLElement {
   }
 
   updateSelectionVisuals() {
+    const isMobile = 'ontouchstart' in window;
+    const shadow = isMobile ? '0 0 20px -5px #19f' : '0 0 100px -20px #19f';
     // Update all rects
     this.querySelectorAll('.rect').forEach(rect => {
       if (this.selectedRects.includes(rect)) {
-        rect.style.boxShadow = '0 0 100px -20px #19f';
+        rect.style.boxShadow = shadow;
       } else {
         rect.style.boxShadow = 'none';
       }
