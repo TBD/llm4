@@ -416,12 +416,70 @@ class SnappingCanvas extends HTMLElement {
     // Create help text
     this.helpText = document.createElement('div');
     this.helpText.className = 'help-text';
-    this.helpText.textContent = 'double-click rect: random color | H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
+    this.helpText.textContent = 'H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
     this.appendChild(this.helpText);
+
+    // Mobile toolbar
+    if ('ontouchstart' in window) {
+      style.textContent += `
+        .mobile-toolbar {
+          position: absolute;
+          bottom: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 10px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 10px;
+          z-index: 1000;
+        }
+
+        .mobile-btn {
+          padding: 10px 15px;
+          border: none;
+          background: #19f;
+          color: white;
+          border-radius: 6px;
+          font-size: 14px;
+          cursor: pointer;
+          min-width: 70px;
+        }
+
+        .mobile-btn:active {
+          background: #007acc;
+        }
+      `;
+
+      this.mobileToolbar = document.createElement('div');
+      this.mobileToolbar.className = 'mobile-toolbar';
+
+      const cloneBtn = document.createElement('button');
+      cloneBtn.className = 'mobile-btn';
+      cloneBtn.textContent = 'Clone';
+      cloneBtn.addEventListener('click', () => this.duplicateSelection());
+      this.mobileToolbar.appendChild(cloneBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'mobile-btn';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', () => this.eraseSelection());
+      this.mobileToolbar.appendChild(deleteBtn);
+
+      const helpBtn = document.createElement('button');
+      helpBtn.className = 'mobile-btn';
+      helpBtn.textContent = 'Help';
+      helpBtn.addEventListener('click', () => {
+        this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
+      });
+      this.mobileToolbar.appendChild(helpBtn);
+
+      this.appendChild(this.mobileToolbar);
+    }
 
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
-    this.addEventListener('dblclick', this.handleDoubleClick.bind(this));
     document.addEventListener('pointermove', this.handlePointerMove.bind(this));
     document.addEventListener('pointerup', this.handlePointerUp.bind(this));
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
@@ -469,19 +527,24 @@ class SnappingCanvas extends HTMLElement {
         }
         // Start dragging all selected rectangles
         this.dragging = rect;
-        this.offsetX = e.offsetX;
-        this.offsetY = e.offsetY;
+        const canvasBounds = this.getBoundingClientRect();
+        const rectBounds = rect.getBoundingClientRect();
+        this.offsetX = e.clientX - (rectBounds.left - canvasBounds.left);
+        this.offsetY = e.clientY - (rectBounds.top - canvasBounds.top);
 
         // Clear any existing guides before starting multi-drag
         this.guides.hide();
         this.clearAlignmentGuides();
 
         // Store initial positions for all selected rectangles
-        this.dragOffsets = this.selectedRects.map(selectedRect => ({
-          rect: selectedRect,
-          initialLeft: parseFloat(selectedRect.style.left),
-          initialTop: parseFloat(selectedRect.style.top)
-        }));
+        this.dragOffsets = this.selectedRects.map(selectedRect => {
+          const bounds = selectedRect.getBoundingClientRect();
+          return {
+            rect: selectedRect,
+            initialLeft: bounds.left - canvasBounds.left,
+            initialTop: bounds.top - canvasBounds.top
+          };
+        });
 
         // Bring all selected to front
         this.selectedRects.forEach(selectedRect => {
@@ -506,22 +569,20 @@ class SnappingCanvas extends HTMLElement {
 
     this.mouseX = e.clientX;
     this.mouseY = e.clientY;
+    this.currentOffsetX = e.offsetX;
+    this.currentOffsetY = e.offsetY;
     if (this.marqueeSelecting) {
       this.updateMarquee(e.clientX, e.clientY);
     } else if (this.dragging) {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
 
-      // Calculate the delta from the initial position of the primary dragged rect
+      // Calculate new position for primary rectangle
       const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
       if (!primaryOffset) return;
 
-      const deltaX = (e.pageX - this.offsetX) - primaryOffset.initialLeft;
-      const deltaY = (e.pageY - this.offsetY) - primaryOffset.initialTop;
-
-      // Calculate new position for primary rectangle
-      let newLeft = primaryOffset.initialLeft + deltaX;
-      let newTop = primaryOffset.initialTop + deltaY;
+      let newLeft = e.clientX - this.offsetX;
+      let newTop = e.clientY - this.offsetY;
 
       // First apply existing snapping guides
       const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
@@ -646,8 +707,8 @@ class SnappingCanvas extends HTMLElement {
 
       // Position new rectangles at mouse position, maintaining relative positions
       if (primaryOffset) {
-        const baseLeft = this.mouseX - this.offsetX;
-        const baseTop = this.mouseY - this.offsetY;
+        const baseLeft = this.currentOffsetX;
+        const baseTop = this.currentOffsetY;
 
         this.dragOffsets.forEach((offset, index) => {
           const newRect = newRects[index];
@@ -1092,13 +1153,53 @@ class SnappingCanvas extends HTMLElement {
     }
   }
 
-  handleDoubleClick(e) {
-    if (e.target.classList.contains('rect')) {
-      const mutedColors = ['#f0f8ff', '#e6f3ff', '#cce7ff', '#b3dbff', '#99cfff', '#80c3ff', '#fafafa', '#f5f5f5', '#eeeeee', '#e0e0e0'];
-      const randomColor = mutedColors[Math.floor(Math.random() * mutedColors.length)];
-      e.target.style.backgroundColor = randomColor;
-    }
+  duplicateSelection() {
+    if (this.selectedRects.length === 0) return;
+
+    // Duplicate all selected rectangles
+    const newRects = [];
+    this.selectedRects.forEach(selectedRect => {
+      const newRect = document.createElement('div');
+      newRect.className = 'rect';
+      newRect.style.width = selectedRect.offsetWidth + 'px';
+      newRect.style.height = selectedRect.offsetHeight + 'px';
+      newRect.style.backgroundColor = selectedRect.style.backgroundColor;
+      newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+
+      const handle = document.createElement('div');
+      handle.className = 'resize-handle';
+      if (!this.bordersVisible) handle.style.display = 'none';
+      newRect.appendChild(handle);
+      this.appendChild(newRect);
+      newRects.push(newRect);
+    });
+
+    // Position new rectangles slightly offset from originals
+    this.selectedRects.forEach((originalRect, index) => {
+      const newRect = newRects[index];
+      const left = parseFloat(originalRect.style.left);
+      const top = parseFloat(originalRect.style.top);
+      newRect.style.left = (left + 20) + 'px';
+      newRect.style.top = (top + 20) + 'px';
+    });
+
+    // Select the new rectangles
+    this.selectedRects = newRects;
+    this.updateSelectionVisuals();
+    this.updateToolbarVisibility();
   }
+
+  eraseSelection() {
+    if (this.selectedRects.length === 0) return;
+
+    // Remove all selected rectangles
+    this.selectedRects.forEach(rect => rect.remove());
+    this.selectedRects = [];
+    this.clearGuides();
+    this.updateToolbarVisibility();
+  }
+
+
 }
 
 customElements.define('snapping-guides', SnappingGuides);
