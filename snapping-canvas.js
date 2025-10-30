@@ -290,19 +290,6 @@ class SnappingCanvas extends HTMLElement {
           if (this.selectedRects.length > 0) {
             // Duplicate the selection
             this.duplicateSelection();
-            // Reposition to center at mouse
-            const newBounds = this.getSelectionBounds();
-            const canvasBounds = this.getBoundingClientRect();
-            const mouseX = e.clientX - canvasBounds.left;
-            const mouseY = e.clientY - canvasBounds.top;
-            const centerX = (newBounds.minX + newBounds.maxX) / 2;
-            const centerY = (newBounds.minY + newBounds.maxY) / 2;
-            const shiftX = mouseX - centerX;
-            const shiftY = mouseY - centerY;
-            this.selectedRects.forEach(r => {
-              r.style.left = (parseFloat(r.style.left) + shiftX) + 'px';
-              r.style.top = (parseFloat(r.style.top) + shiftY) + 'px';
-            });
             this.dragging = this.selectedRects[0];
           } else {
             // Duplicate the clicked rect
@@ -310,13 +297,7 @@ class SnappingCanvas extends HTMLElement {
             this.deselectAll();
             this.selectRect(duplicate);
             this.dragging = duplicate;
-            // Position at mouse
-            const canvasBounds = this.getBoundingClientRect();
-            const rectBounds = rect.getBoundingClientRect();
-            this.offsetX = e.clientX - (rectBounds.left - canvasBounds.left);
-            this.offsetY = e.clientY - (rectBounds.top - canvasBounds.top);
-            duplicate.style.left = (e.clientX - canvasBounds.left - this.offsetX) + 'px';
-            duplicate.style.top = (e.clientY - canvasBounds.top - this.offsetY) + 'px';
+            // Keep at original position, no mouse repositioning
           }
         } else {
           // Single select or start dragging
@@ -953,13 +934,13 @@ class SnappingCanvas extends HTMLElement {
       newRects.push(newRect);
     });
 
-    // Position new rectangles slightly offset from originals
+    // Position new rectangles at the same positions as originals
     this.selectedRects.forEach((originalRect, index) => {
       const newRect = newRects[index];
       const left = parseFloat(originalRect.style.left);
       const top = parseFloat(originalRect.style.top);
-      newRect.style.left = (left + 20) + 'px';
-      newRect.style.top = (top + 20) + 'px';
+      newRect.style.left = left + 'px';
+      newRect.style.top = top + 'px';
     });
 
     // Select the new rectangles
