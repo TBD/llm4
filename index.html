@@ -16,13 +16,15 @@
       font-family: sans-serif;
     }
 
+    h1 {text-align: center; font-size: 0.8em; font-weight: 100;}
+
     snapping-canvas {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      background: #fff;
-      display: block;
-      touch-action: none;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    display: block;
+    touch-action: none;
     }
 
     .rect {
@@ -78,10 +80,12 @@
       border-left: none;
       border-right: none;
     }
+    h1 {text-align: center; font-size: 0.8em; font-weight: 100;}
   </style>
 </head>
 
 <body>
+  <h1>move things around</h1>
   <snapping-canvas>
     <div class="rect" style="left:10px;top:10px;width:120px;height:80px">
       <div class="resize-handle"></div>

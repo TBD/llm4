@@ -13,23 +13,19 @@ class SnappingGuides extends HTMLElement {
     Object.assign(this.vGuide.style, {
       position: 'absolute',
       borderLeft: '2px dashed #19f',
-      zIndex: '9999',
+      zIndex: '10001',
       pointerEvents: 'none',
       width: '1px',
-      height: '100%',
       opacity: '0.7',
-      top: '0',
       display: 'none'
     });
     Object.assign(this.hGuide.style, {
       position: 'absolute',
       borderTop: '2px dashed #19f',
-      zIndex: '9999',
+      zIndex: '10001',
       pointerEvents: 'none',
       height: '1px',
-      width: '100%',
       opacity: '0.7',
-      left: '0',
       display: 'none'
     });
   }
@@ -40,12 +36,17 @@ class SnappingGuides extends HTMLElement {
   }
 
   showVertical(x) {
-    this.vGuide.style.left = `${x}px`;
+    this.vGuide.style.left = x + 'px';
+    this.vGuide.style.top = '0px';
+    this.vGuide.style.height = '100%';
     this.vGuide.style.display = 'block';
   }
 
   showHorizontal(y) {
-    this.hGuide.style.top = `${y}px`;
+    console.log('showHorizontal: y=', y);
+    this.hGuide.style.top = y + 'px';
+    this.hGuide.style.left = '0px';
+    this.hGuide.style.width = '100%';
     this.hGuide.style.display = 'block';
   }
 
@@ -70,13 +71,13 @@ class SnappingGuides extends HTMLElement {
       Object.assign(g.style, {
         position: 'absolute',
         borderTop: '1px dashed #19f',
-        zIndex: '9999',
+        zIndex: '10001',
         pointerEvents: 'none',
         height: '1px',
         width: '100%',
         opacity: '0.7',
         left: '0',
-        top: `${y}px`
+        top: y + 'px'
       });
       this.appendChild(g);
     }
@@ -90,13 +91,13 @@ class SnappingGuides extends HTMLElement {
       Object.assign(g.style, {
         position: 'absolute',
         borderLeft: '1px dashed #19f',
-        zIndex: '9999',
+        zIndex: '10001',
         pointerEvents: 'none',
         width: '1px',
         height: '100%',
         opacity: '0.7',
         top: '0',
-        left: `${x}px`
+        left: x + 'px'
       });
       this.appendChild(g);
     }
@@ -192,6 +193,7 @@ class SnappingGuides extends HTMLElement {
   }
 
   snapResize(rect, newW, newH, others) {
+    console.log('snapResize: rect.top=', rect.top, 'newH=', newH, 'newBottom=', rect.top + newH);
     this.guideX = null;
     this.guideY = null;
 
@@ -215,11 +217,13 @@ class SnappingGuides extends HTMLElement {
       if (Math.abs(newBottom - otherRect.top) < this.snapDistance) {
         newH = otherRect.top - rect.top;
         this.guideY = rect.top + newH;
+        console.log('snapResize: guideY set to', this.guideY, 'for bottom to top');
       }
       // Check bottom edge to other's bottom
       if (Math.abs(newBottom - otherRect.bottom) < this.snapDistance) {
         newH = otherRect.bottom - rect.top;
         this.guideY = otherRect.bottom;
+        console.log('snapResize: guideY set to', this.guideY, 'for bottom to bottom');
       }
     }
 
@@ -236,6 +240,7 @@ class SnappingGuides extends HTMLElement {
       if (Math.abs(newBottom - fy) < this.snapDistance) {
         newH = fy - rect.top;
         this.guideY = fy;
+        console.log('snapResize: guideY set to', this.guideY, 'for fixed horizontal fy=', fy);
       }
     }
 
@@ -292,7 +297,7 @@ class SnappingCanvas extends HTMLElement {
         display: none;
         gap: 6px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        z-index: 1000;
+        z-index: 10002;
         font-family: inherit;
         font-size: 12px;
       }
@@ -378,21 +383,21 @@ class SnappingCanvas extends HTMLElement {
     style.textContent += `
       .help-button {
         position: absolute;
-        bottom: 10px;
+        bottom: 4em;
         right: 10px;
         padding: 4px 8px;
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid #ddd;
+        background: rgba(25, 159, 255, 0.9);
+        border: 1px solid #19f;
         border-radius: 4px;
         font-size: 12px;
         cursor: pointer;
-        color: #333;
+        color: #fff;
       }
 
       .help-text {
         position: absolute;
-        bottom: 40px;
-        right: 10px;
+        bottom: 4em;
+        right: 60px;
         background: rgba(0, 0, 0, 0.8);
         color: #fff;
         padding: 8px;
@@ -400,23 +405,14 @@ class SnappingCanvas extends HTMLElement {
         font-size: 12px;
         max-width: 300px;
         display: none;
-        z-index: 1001;
+        z-index: 10003;
       }
     `;
-
-    // Create help button
-    this.helpButton = document.createElement('button');
-    this.helpButton.className = 'help-button';
-    this.helpButton.textContent = 'Help';
-    this.helpButton.addEventListener('click', () => {
-      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
-    });
-    this.appendChild(this.helpButton);
 
     // Create help text
     this.helpText = document.createElement('div');
     this.helpText.className = 'help-text';
-    this.helpText.textContent = 'H: horizontal guide | V: vertical guide | R: remove guides | D: duplicate selection | E: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
+    this.helpText.textContent = 'H: horizontal guide | V: vertical guide | R: remove guides | Alt+drag: duplicate | Backspace: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
     this.appendChild(this.helpText);
 
     // Help button for desktop
@@ -444,7 +440,7 @@ class SnappingCanvas extends HTMLElement {
           border: 1px solid #ddd;
           border-radius: 8px;
           padding: 10px;
-          z-index: 1000;
+          z-index: 10002;
         }
 
         .mobile-btn {
@@ -467,10 +463,10 @@ class SnappingCanvas extends HTMLElement {
       const resizeStyle = document.createElement('style');
       resizeStyle.textContent = `
         .resize-handle {
-          width: 32px !important;
-          height: 32px !important;
-          right: -16px !important;
-          bottom: -16px !important;
+          width: 48px !important;
+          height: 48px !important;
+          right: -24px !important;
+          bottom: -24px !important;
         }
       `;
       this.appendChild(resizeStyle);
@@ -543,15 +539,50 @@ class SnappingCanvas extends HTMLElement {
           this.selectRect(rect);
         }
       } else {
-        // Single select or start dragging
-        if (!this.selectedRects.includes(rect)) {
-          this.deselectAll();
-          this.selectRect(rect);
+        // Check for Alt+drag duplication
+        if (e.altKey) {
+          if (this.selectedRects.length > 0) {
+            // Duplicate the selection
+            this.duplicateSelection();
+            // Reposition to center at mouse
+            const newBounds = this.getSelectionBounds();
+            const canvasBounds = this.getBoundingClientRect();
+            const mouseX = e.clientX - canvasBounds.left;
+            const mouseY = e.clientY - canvasBounds.top;
+            const centerX = (newBounds.minX + newBounds.maxX) / 2;
+            const centerY = (newBounds.minY + newBounds.maxY) / 2;
+            const shiftX = mouseX - centerX;
+            const shiftY = mouseY - centerY;
+            this.selectedRects.forEach(r => {
+              r.style.left = (parseFloat(r.style.left) + shiftX) + 'px';
+              r.style.top = (parseFloat(r.style.top) + shiftY) + 'px';
+            });
+            this.dragging = this.selectedRects[0];
+          } else {
+            // Duplicate the clicked rect
+            const duplicate = this.duplicateRect(rect);
+            this.deselectAll();
+            this.selectRect(duplicate);
+            this.dragging = duplicate;
+            // Position at mouse
+            const canvasBounds = this.getBoundingClientRect();
+            const rectBounds = rect.getBoundingClientRect();
+            this.offsetX = e.clientX - (rectBounds.left - canvasBounds.left);
+            this.offsetY = e.clientY - (rectBounds.top - canvasBounds.top);
+            duplicate.style.left = (e.clientX - canvasBounds.left - this.offsetX) + 'px';
+            duplicate.style.top = (e.clientY - canvasBounds.top - this.offsetY) + 'px';
+          }
+        } else {
+          // Single select or start dragging
+          if (!this.selectedRects.includes(rect)) {
+            this.deselectAll();
+            this.selectRect(rect);
+          }
+          // Start dragging all selected rectangles
+          this.dragging = rect;
         }
-        // Start dragging all selected rectangles
-        this.dragging = rect;
         const canvasBounds = this.getBoundingClientRect();
-        const rectBounds = rect.getBoundingClientRect();
+        const rectBounds = this.dragging.getBoundingClientRect();
         this.offsetX = e.clientX - (rectBounds.left - canvasBounds.left);
         this.offsetY = e.clientY - (rectBounds.top - canvasBounds.top);
 
@@ -635,8 +666,10 @@ class SnappingCanvas extends HTMLElement {
       this.guides.setGuideY(null);
       let newW = Math.max(50, this.startW + (e.pageX - this.startX));
       let newH = Math.max(50, this.startH + (e.pageY - this.startY));
+      console.log('resizing: newW=', newW, 'newH=', newH);
       const rectPos = this.resizing.getBoundingClientRect();
-      const result = this.guides.snapResize({left: rectPos.left, top: rectPos.top}, newW, newH, this.otherRects);
+      const canvasRect = this.getBoundingClientRect();
+      const result = this.guides.snapResize({left: rectPos.left - canvasRect.left, top: rectPos.top - canvasRect.top}, newW, newH, this.otherRects);
       newW = result.newW;
       newH = result.newH;
       this.showGuides();
@@ -698,70 +731,10 @@ class SnappingCanvas extends HTMLElement {
         if (handle) handle.style.display = handleDisplay;
       });
       this.updateSelectionVisuals(); // Update selection visuals too
-    } else if ((e.key === 'e' || e.key === 'E') && this.dragging) {
-      // Remove all selected rectangles
-      this.selectedRects.forEach(rect => rect.remove());
-      this.selectedRects = [];
-      this.clearGuides();
-      document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
-      this.dragging = null;
-      this.dragOffsets = [];
-    } else if ((e.key === 'd' || e.key === 'D') && this.dragging) {
-      // Duplicate all selected rectangles
-      const newRects = [];
-      const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
-
-      this.dragOffsets.forEach(offset => {
-        const newRect = document.createElement('div');
-        newRect.className = 'rect';
-        newRect.style.width = offset.rect.offsetWidth + 'px';
-        newRect.style.height = offset.rect.offsetHeight + 'px';
-        newRect.style.backgroundColor = offset.rect.style.backgroundColor;
-        newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
-
-        const handle = document.createElement('div');
-        handle.className = 'resize-handle';
-        if (!this.bordersVisible) handle.style.display = 'none';
-        newRect.appendChild(handle);
-        this.appendChild(newRect);
-        newRects.push(newRect);
-      });
-
-      // Position new rectangles at mouse position, maintaining relative positions
-      if (primaryOffset) {
-        const baseLeft = this.currentOffsetX;
-        const baseTop = this.currentOffsetY;
-
-        this.dragOffsets.forEach((offset, index) => {
-          const newRect = newRects[index];
-          const relativeLeft = offset.initialLeft - primaryOffset.initialLeft;
-          const relativeTop = offset.initialTop - primaryOffset.initialTop;
-
-          newRect.style.left = (baseLeft + relativeLeft) + 'px';
-          newRect.style.top = (baseTop + relativeTop) + 'px';
-        });
-      }
-
-      // Move old rectangles back to original positions
-      this.dragOffsets.forEach(offset => {
-        offset.rect.style.left = offset.initialLeft + 'px';
-        offset.rect.style.top = offset.initialTop + 'px';
-        offset.rect.style.zIndex = 1;
-      });
-
-      // Select and start dragging new rectangles
-      this.selectedRects = newRects;
-      this.updateSelectionVisuals();
-      this.dragging = newRects[0]; // Primary drag rect is the first one
-      this.dragOffsets = newRects.map(newRect => ({
-        rect: newRect,
-        initialLeft: parseFloat(newRect.style.left),
-        initialTop: parseFloat(newRect.style.top)
-      }));
-      this.selectedRects.forEach(rect => rect.style.zIndex = 10);
-      this.updateOtherRects();
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      this.eraseSelection();
     }
+
   }
 
   updateOtherRects() {
@@ -783,6 +756,7 @@ class SnappingCanvas extends HTMLElement {
       this.guides.hideVertical();
     }
     if (this.guides.getGuideY() !== null) {
+      console.log('showGuides: calling showHorizontal with guideY=', this.guides.getGuideY());
       this.guides.showHorizontal(this.guides.getGuideY());
     } else {
       this.guides.hideHorizontal();
@@ -859,7 +833,7 @@ class SnappingCanvas extends HTMLElement {
       border: '2px dashed #ff6b35',
       backgroundColor: 'rgba(255, 107, 53, 0.1)',
       pointerEvents: 'none',
-      zIndex: '1000'
+      zIndex: '10002'
     });
     this.appendChild(this.marqueeElement);
   }
@@ -919,6 +893,7 @@ class SnappingCanvas extends HTMLElement {
   createAlignmentGuide(type, position) {
     const guide = document.createElement('div');
     guide.className = 'guide-line';
+    guide.style.zIndex = '10001';
 
     if (type === 'vertical') {
       guide.classList.add('guide-vertical');
@@ -1214,6 +1189,29 @@ class SnappingCanvas extends HTMLElement {
     this.selectedRects = newRects;
     this.updateSelectionVisuals();
     this.updateToolbarVisibility();
+  }
+
+  duplicateRect(rect) {
+    const newRect = document.createElement('div');
+    newRect.className = 'rect';
+    newRect.style.width = rect.offsetWidth + 'px';
+    newRect.style.height = rect.offsetHeight + 'px';
+    newRect.style.backgroundColor = rect.style.backgroundColor;
+    newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    if (!this.bordersVisible) handle.style.display = 'none';
+    newRect.appendChild(handle);
+    this.appendChild(newRect);
+
+    // Position at the same position
+    const left = parseFloat(rect.style.left);
+    const top = parseFloat(rect.style.top);
+    newRect.style.left = left + 'px';
+    newRect.style.top = top + 'px';
+
+    return newRect;
   }
 
   eraseSelection() {
