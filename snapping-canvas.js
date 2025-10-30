@@ -384,13 +384,18 @@ class SnappingCanvas extends HTMLElement {
         const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
         if (!primaryOffset) return;
 
-        // First apply existing snapping guides
-        const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
+        // Get bounding box of all selected rectangles
+        const bounds = this.getSelectionBounds();
+        const groupWidth = bounds.width;
+        const groupHeight = bounds.height;
+
+        // First apply existing snapping guides using the group's bounding box
+        const snapResult = this.guides.snapDrag(newLeft, newTop, groupWidth, groupHeight, this.otherRects);
         newLeft = snapResult.left;
         newTop = snapResult.top;
 
-        // Then check for alignment guides and potentially snap
-        const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop);
+        // Then check for alignment guides and potentially snap using group's bounding box
+        const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop, groupWidth, groupHeight);
         if (alignmentResult.aligned) {
           newLeft = alignmentResult.left;
           newTop = alignmentResult.top;
@@ -681,14 +686,18 @@ class SnappingCanvas extends HTMLElement {
     this.alignmentGuides = [];
   }
 
-  checkAlignmentGuides(draggedRect, newLeft, newTop) {
+  checkAlignmentGuides(draggedRect, newLeft, newTop, width, height) {
     this.clearAlignmentGuides();
+
+    // Use provided width/height for group snapping, or fall back to rect's dimensions
+    const actualWidth = width !== undefined ? width : draggedRect.offsetWidth;
+    const actualHeight = height !== undefined ? height : draggedRect.offsetHeight;
 
     const draggedBounds = {
       left: newLeft,
       top: newTop,
-      right: newLeft + draggedRect.offsetWidth,
-      bottom: newTop + draggedRect.offsetHeight
+      right: newLeft + actualWidth,
+      bottom: newTop + actualHeight
     };
 
     const alignmentThreshold = 8; // pixels
@@ -711,7 +720,7 @@ class SnappingCanvas extends HTMLElement {
       // Dragged right edge to other left edge
       if (Math.abs(draggedBounds.right - otherBounds.left) <= alignmentThreshold) {
         this.createAlignmentGuide('vertical', otherBounds.left);
-        snappedLeft = otherBounds.left - draggedRect.offsetWidth;
+        snappedLeft = otherBounds.left - actualWidth;
         foundAlignment = true;
       }
       // Dragged left edge to other right edge
@@ -729,7 +738,7 @@ class SnappingCanvas extends HTMLElement {
       // Dragged right edge to other right edge
       else if (Math.abs(draggedBounds.right - otherBounds.right) <= alignmentThreshold) {
         this.createAlignmentGuide('vertical', otherBounds.right);
-        snappedLeft = otherBounds.right - draggedRect.offsetWidth;
+        snappedLeft = otherBounds.right - actualWidth;
         foundAlignment = true;
       }
 
@@ -737,7 +746,7 @@ class SnappingCanvas extends HTMLElement {
       // Dragged bottom edge to other top edge
       if (Math.abs(draggedBounds.bottom - otherBounds.top) <= alignmentThreshold) {
         this.createAlignmentGuide('horizontal', otherBounds.top);
-        snappedTop = otherBounds.top - draggedRect.offsetHeight;
+        snappedTop = otherBounds.top - actualHeight;
         foundAlignment = true;
       }
       // Dragged top edge to other bottom edge
@@ -755,7 +764,7 @@ class SnappingCanvas extends HTMLElement {
       // Dragged bottom edge to other bottom edge
       else if (Math.abs(draggedBounds.bottom - otherBounds.bottom) <= alignmentThreshold) {
         this.createAlignmentGuide('horizontal', otherBounds.bottom);
-        snappedTop = otherBounds.bottom - draggedRect.offsetHeight;
+        snappedTop = otherBounds.bottom - actualHeight;
         foundAlignment = true;
       }
     });
