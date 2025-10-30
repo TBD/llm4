@@ -1,255 +1,3 @@
-class SnappingGuides extends HTMLElement {
-  constructor() {
-    super();
-    this.vGuide = document.createElement('div');
-    this.hGuide = document.createElement('div');
-    this.fixedHorizontals = [];
-    this.fixedVerticals = [];
-    this.guideX = null;
-    this.guideY = null;
-    this.snapDistance = 10;
-
-    // Style guides
-    Object.assign(this.vGuide.style, {
-      position: 'absolute',
-      borderLeft: '2px dashed #19f',
-      zIndex: '10001',
-      pointerEvents: 'none',
-      width: '1px',
-      opacity: '0.7',
-      display: 'none'
-    });
-    Object.assign(this.hGuide.style, {
-      position: 'absolute',
-      borderTop: '2px dashed #19f',
-      zIndex: '10001',
-      pointerEvents: 'none',
-      height: '1px',
-      opacity: '0.7',
-      display: 'none'
-    });
-  }
-
-  connectedCallback() {
-    this.appendChild(this.vGuide);
-    this.appendChild(this.hGuide);
-  }
-
-  showVertical(x) {
-    this.vGuide.style.left = x + 'px';
-    this.vGuide.style.top = '0px';
-    this.vGuide.style.height = '100%';
-    this.vGuide.style.display = 'block';
-  }
-
-  showHorizontal(y) {
-    console.log('showHorizontal: y=', y);
-    this.hGuide.style.top = y + 'px';
-    this.hGuide.style.left = '0px';
-    this.hGuide.style.width = '100%';
-    this.hGuide.style.display = 'block';
-  }
-
-  hideVertical() {
-    this.vGuide.style.display = 'none';
-  }
-
-  hideHorizontal() {
-    this.hGuide.style.display = 'none';
-  }
-
-  hide() {
-    this.hideVertical();
-    this.hideHorizontal();
-  }
-
-  addHorizontalGuide(y) {
-    if (!this.fixedHorizontals.includes(y)) {
-      this.fixedHorizontals.push(y);
-      const g = document.createElement('div');
-      g.className = 'fixed-guide';
-      Object.assign(g.style, {
-        position: 'absolute',
-        borderTop: '1px dashed #19f',
-        zIndex: '10001',
-        pointerEvents: 'none',
-        height: '1px',
-        width: '100%',
-        opacity: '0.7',
-        left: '0',
-        top: y + 'px'
-      });
-      this.appendChild(g);
-    }
-  }
-
-  addVerticalGuide(x) {
-    if (!this.fixedVerticals.includes(x)) {
-      this.fixedVerticals.push(x);
-      const g = document.createElement('div');
-      g.className = 'fixed-guide';
-      Object.assign(g.style, {
-        position: 'absolute',
-        borderLeft: '1px dashed #19f',
-        zIndex: '10001',
-        pointerEvents: 'none',
-        width: '1px',
-        height: '100%',
-        opacity: '0.7',
-        top: '0',
-        left: x + 'px'
-      });
-      this.appendChild(g);
-    }
-  }
-
-  removeAllFixedGuides() {
-    this.fixedHorizontals.length = 0;
-    this.fixedVerticals.length = 0;
-    this.querySelectorAll('.fixed-guide').forEach(g => g.remove());
-  }
-
-  getFixedHorizontals() {
-    return this.fixedHorizontals;
-  }
-
-  getFixedVerticals() {
-    return this.fixedVerticals;
-  }
-
-  getGuideX() {
-    return this.guideX;
-  }
-
-  getGuideY() {
-    return this.guideY;
-  }
-
-  setGuideX(x) {
-    this.guideX = x;
-  }
-
-  setGuideY(y) {
-    this.guideY = y;
-  }
-
-  snapDrag(left, top, width, height, others) {
-    this.guideX = null;
-    this.guideY = null;
-
-    // Check against other rectangles
-    for (const rect of others) {
-      const rectLeft = rect.left;
-      const rectTop = rect.top;
-      const rectRight = rectLeft + rect.width;
-      const rectBottom = rectTop + rect.height;
-
-      // Check left edge
-      if (Math.abs(left - rectLeft) < this.snapDistance) {
-        left = rectLeft;
-        this.guideX = left;
-      }
-      // Check right edge
-      else if (Math.abs((left + width) - rectRight) < this.snapDistance) {
-        left = rectRight - width;
-        this.guideX = left + width;
-      }
-
-      // Check top edge
-      if (Math.abs(top - rectTop) < this.snapDistance) {
-        top = rectTop;
-        this.guideY = top;
-      }
-      // Check bottom edge
-      else if (Math.abs((top + height) - rectBottom) < this.snapDistance) {
-        top = rectBottom - height;
-        this.guideY = top + height;
-      }
-    }
-
-    // Check fixed verticals
-    for (let fx of this.getFixedVerticals()) {
-      if (Math.abs(left - fx) < this.snapDistance) {
-        left = fx;
-        this.guideX = fx;
-      } else if (Math.abs((left + width) - fx) < this.snapDistance) {
-        left = fx - width;
-        this.guideX = fx;
-      }
-    }
-
-    // Check fixed horizontals
-    for (let fy of this.getFixedHorizontals()) {
-      if (Math.abs(top - fy) < this.snapDistance) {
-        top = fy;
-        this.guideY = fy;
-      } else if (Math.abs((top + height) - fy) < this.snapDistance) {
-        top = fy - height;
-        this.guideY = fy;
-      }
-    }
-
-    return { left, top };
-  }
-
-  snapResize(rect, newW, newH, others) {
-    console.log('snapResize: rect.top=', rect.top, 'newH=', newH, 'newBottom=', rect.top + newH);
-    this.guideX = null;
-    this.guideY = null;
-
-    const newRight = rect.left + newW;
-    const newBottom = rect.top + newH;
-
-    for (const other of others) {
-      const otherRect = { left: other.left, top: other.top, right: other.left + other.width, bottom: other.top + other.height };
-
-      // Check right edge to other's left
-      if (Math.abs(newRight - otherRect.left) < this.snapDistance) {
-        newW = otherRect.left - rect.left;
-        this.guideX = rect.left + newW;
-      }
-      // Check right edge to other's right
-      if (Math.abs(newRight - otherRect.right) < this.snapDistance) {
-        newW = otherRect.right - rect.left;
-        this.guideX = otherRect.right;
-      }
-      // Check bottom edge to other's top
-      if (Math.abs(newBottom - otherRect.top) < this.snapDistance) {
-        newH = otherRect.top - rect.top;
-        this.guideY = rect.top + newH;
-        console.log('snapResize: guideY set to', this.guideY, 'for bottom to top');
-      }
-      // Check bottom edge to other's bottom
-      if (Math.abs(newBottom - otherRect.bottom) < this.snapDistance) {
-        newH = otherRect.bottom - rect.top;
-        this.guideY = otherRect.bottom;
-        console.log('snapResize: guideY set to', this.guideY, 'for bottom to bottom');
-      }
-    }
-
-    // Check fixed verticals for newRight
-    for (let fx of this.getFixedVerticals()) {
-      if (Math.abs(newRight - fx) < this.snapDistance) {
-        newW = fx - rect.left;
-        this.guideX = fx;
-      }
-    }
-
-    // Check fixed horizontals for newBottom
-    for (let fy of this.getFixedHorizontals()) {
-      if (Math.abs(newBottom - fy) < this.snapDistance) {
-        newH = fy - rect.top;
-        this.guideY = fy;
-        console.log('snapResize: guideY set to', this.guideY, 'for fixed horizontal fy=', fy);
-      }
-    }
-
-    newW = Math.max(50, newW);
-    newH = Math.max(50, newH);
-    return { newW, newH };
-  }
-}
-
 class SnappingCanvas extends HTMLElement {
   constructor() {
     super();
@@ -344,37 +92,37 @@ class SnappingCanvas extends HTMLElement {
     this.toolbar = document.createElement('div');
     this.toolbar.className = 'alignment-toolbar';
     this.toolbar.innerHTML = `
-      <button class="align-btn" data-action="align-left">
-        <div class="align-icon">←</div>
-        <div class="align-label">Left</div>
+      <button class=\"align-btn\" data-action=\"align-left\">
+        <div class=\"align-icon\">←</div>
+        <div class=\"align-label\">Left</div>
       </button>
-      <button class="align-btn" data-action="align-center">
-        <div class="align-icon">↔</div>
-        <div class="align-label">Center</div>
+      <button class=\"align-btn\" data-action=\"align-center\">
+        <div class=\"align-icon\">↔</div>
+        <div class=\"align-label\">Center</div>
       </button>
-      <button class="align-btn" data-action="align-right">
-        <div class="align-icon">→</div>
-        <div class="align-label">Right</div>
+      <button class=\"align-btn\" data-action=\"align-right\">
+        <div class=\"align-icon\">→</div>
+        <div class=\"align-label\">Right</div>
       </button>
-      <button class="align-btn" data-action="align-top">
-        <div class="align-icon">↑</div>
-        <div class="align-label">Top</div>
+      <button class=\"align-btn\" data-action=\"align-top\">
+        <div class=\"align-icon\">↑</div>
+        <div class=\"align-label\">Top</div>
       </button>
-      <button class="align-btn" data-action="align-middle">
-        <div class="align-icon">↕</div>
-        <div class="align-label">Middle</div>
+      <button class=\"align-btn\" data-action=\"align-middle\">
+        <div class=\"align-icon\">↕</div>
+        <div class=\"align-label\">Middle</div>
       </button>
-      <button class="align-btn" data-action="align-bottom">
-        <div class="align-icon">↓</div>
-        <div class="align-label">Bottom</div>
+      <button class=\"align-btn\" data-action=\"align-bottom\">
+        <div class=\"align-icon\">↓</div>
+        <div class=\"align-label\">Bottom</div>
       </button>
-      <button class="align-btn" data-action="distribute-h">
-        <div class="align-icon">⇄</div>
-        <div class="align-label">Dist H</div>
+      <button class=\"align-btn\" data-action=\"distribute-h\">
+        <div class=\"align-icon\">⇄</div>
+        <div class=\"align-label\">Dist H</div>
       </button>
-      <button class="align-btn" data-action="distribute-v">
-        <div class="align-icon">⇅</div>
-        <div class="align-label">Dist V</div>
+      <button class=\"align-btn\" data-action=\"distribute-v\">
+        <div class=\"align-icon\">⇅</div>
+        <div class=\"align-label\">Dist V</div>
       </button>
     `;
     this.appendChild(this.toolbar);
@@ -510,8 +258,6 @@ class SnappingCanvas extends HTMLElement {
     this.updateToolbarVisibility();
   }
 
-
-
   handlePointerDown(e) {
     // Only handle primary pointer (left mouse or touch)
     if (e.button !== 0) return;
@@ -623,42 +369,59 @@ class SnappingCanvas extends HTMLElement {
 
     this.mouseX = e.clientX;
     this.mouseY = e.clientY;
-    this.currentOffsetX = e.offsetX;
-    this.currentOffsetY = e.offsetY;
     if (this.marqueeSelecting) {
       this.updateMarquee(e.offsetX, e.offsetY);
     } else if (this.dragging) {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
 
-      // Calculate new position for primary rectangle
-      const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
-      if (!primaryOffset) return;
-
       let newLeft = e.clientX - this.offsetX;
       let newTop = e.clientY - this.offsetY;
 
-      // First apply existing snapping guides
-      const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
-      newLeft = snapResult.left;
-      newTop = snapResult.top;
+      if (this.selectedRects.length > 1 && this.dragOffsets.length > 0) {
+        // Multi-drag
+        // Calculate new position for primary rectangle
+        const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
+        if (!primaryOffset) return;
 
-      // Then check for alignment guides and potentially snap
-      const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop);
-      if (alignmentResult.aligned) {
-        newLeft = alignmentResult.left;
-        newTop = alignmentResult.top;
+        // First apply existing snapping guides
+        const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
+        newLeft = snapResult.left;
+        newTop = snapResult.top;
+
+        // Then check for alignment guides and potentially snap
+        const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop);
+        if (alignmentResult.aligned) {
+          newLeft = alignmentResult.left;
+          newTop = alignmentResult.top;
+        }
+
+        // Adjust delta based on final position
+        const finalDeltaX = newLeft - primaryOffset.initialLeft;
+        const finalDeltaY = newTop - primaryOffset.initialTop;
+
+        // Apply final delta to all rectangles
+        this.dragOffsets.forEach(otherOffset => {
+          otherOffset.rect.style.left = (otherOffset.initialLeft + finalDeltaX) + 'px';
+          otherOffset.rect.style.top = (otherOffset.initialTop + finalDeltaY) + 'px';
+        });
+      } else {
+        // Single drag
+        // First apply existing snapping guides
+        const snapResult = this.guides.snapDrag(newLeft, newTop, this.dragging.offsetWidth, this.dragging.offsetHeight, this.otherRects);
+        newLeft = snapResult.left;
+        newTop = snapResult.top;
+
+        // Then check for alignment guides and potentially snap
+        const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop);
+        if (alignmentResult.aligned) {
+          newLeft = alignmentResult.left;
+          newTop = alignmentResult.top;
+        }
+
+        this.dragging.style.left = newLeft + 'px';
+        this.dragging.style.top = newTop + 'px';
       }
-
-      // Adjust delta based on final position
-      const finalDeltaX = newLeft - primaryOffset.initialLeft;
-      const finalDeltaY = newTop - primaryOffset.initialTop;
-
-      // Apply final delta to all rectangles
-      this.dragOffsets.forEach(otherOffset => {
-        otherOffset.rect.style.left = (otherOffset.initialLeft + finalDeltaX) + 'px';
-        otherOffset.rect.style.top = (otherOffset.initialTop + finalDeltaY) + 'px';
-      });
 
       this.showGuides();
     } else if (this.resizing) {
@@ -699,6 +462,11 @@ class SnappingCanvas extends HTMLElement {
   }
 
   handleKeyDown(e) {
+    // Calculate current mouse position relative to canvas
+    const canvasBounds = this.getBoundingClientRect();
+    const mouseX = e.clientX - canvasBounds.left;
+    const mouseY = e.clientY - canvasBounds.top;
+
     if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       this.selectAll();
@@ -716,9 +484,9 @@ class SnappingCanvas extends HTMLElement {
           break;
       }
     } else if (e.key === 'h' || e.key === 'H') {
-      this.guides.addHorizontalGuide(this.mouseY);
+      this.guides.addHorizontalGuide(mouseY);
     } else if (e.key === 'v' || e.key === 'V') {
-      this.guides.addVerticalGuide(this.mouseX);
+      this.guides.addVerticalGuide(mouseX);
     } else if (e.key === 'r' || e.key === 'R') {
       this.guides.removeAllFixedGuides();
     } else if (e.key === 'b' || e.key === 'B') {
@@ -1227,5 +995,4 @@ class SnappingCanvas extends HTMLElement {
 
 }
 
-customElements.define('snapping-guides', SnappingGuides);
 customElements.define('snapping-canvas', SnappingCanvas);
