@@ -31,9 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // Remove nodes that no longer exist in the nodes array
+        // Optimize: Use Set for O(1) lookup instead of find() for O(n²) complexity
+        const nodeIdSet = new Set(nodes.map(n => n.id));
         const nodeElements = nodeCanvas.querySelectorAll('.node');
         nodeElements.forEach(nodeEl => {
-            if (!nodes.find(n => n.id === nodeEl.id)) {
+            if (!nodeIdSet.has(nodeEl.id)) {
                 nodeEl.remove();
             }
         });
