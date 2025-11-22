@@ -12,18 +12,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to render all nodes on the canvas
     function renderNodes() {
-        nodeCanvas.innerHTML = ''; // Clear canvas
-
+        // Optimize: Only update existing nodes or add new ones, don't clear everything
         nodes.forEach(node => {
-            const nodeEl = document.createElement('div');
-            nodeEl.classList.add('node');
-            nodeEl.id = node.id;
+            let nodeEl = document.getElementById(node.id);
+            
+            if (!nodeEl) {
+                // Create new node if it doesn't exist
+                nodeEl = document.createElement('div');
+                nodeEl.classList.add('node');
+                nodeEl.id = node.id;
+                nodeEl.textContent = node.name;
+                nodeCanvas.appendChild(nodeEl);
+            }
+            
+            // Update position (this is the only thing that changes during drag)
             nodeEl.style.left = `${node.x}px`;
             nodeEl.style.top = `${node.y}px`;
-            nodeEl.textContent = node.name;
-            // nodeEl.style.cursor = 'grab'; // Set initial cursor, will be updated on drag
-
-            nodeCanvas.appendChild(nodeEl);
+        });
+        
+        // Remove nodes that no longer exist in the nodes array
+        // Optimize: Use Set for O(1) lookup instead of find() for O(n²) complexity
+        const nodeIdSet = new Set(nodes.map(n => n.id));
+        const nodeElements = nodeCanvas.querySelectorAll('.node');
+        nodeElements.forEach(nodeEl => {
+            if (!nodeIdSet.has(nodeEl.id)) {
+                nodeEl.remove();
+            }
         });
     }
 

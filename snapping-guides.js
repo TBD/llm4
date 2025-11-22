@@ -43,7 +43,6 @@ class SnappingGuides extends HTMLElement {
   }
 
   showHorizontal(y) {
-    console.log('showHorizontal: y=', y);
     this.hGuide.style.top = y + 'px';
     this.hGuide.style.left = '0px';
     this.hGuide.style.width = '100%';
@@ -137,6 +136,9 @@ class SnappingGuides extends HTMLElement {
     this.guideX = null;
     this.guideY = null;
 
+    let snappedX = false;
+    let snappedY = false;
+
     // Check against other rectangles
     for (const rect of others) {
       const rectLeft = rect.left;
@@ -144,48 +146,67 @@ class SnappingGuides extends HTMLElement {
       const rectRight = rectLeft + rect.width;
       const rectBottom = rectTop + rect.height;
 
-      // Check left edge
-      if (Math.abs(left - rectLeft) < this.snapDistance) {
-        left = rectLeft;
-        this.guideX = left;
-      }
-      // Check right edge
-      else if (Math.abs((left + width) - rectRight) < this.snapDistance) {
-        left = rectRight - width;
-        this.guideX = left + width;
+      // Check left edge (only if not already snapped)
+      if (!snappedX) {
+        if (Math.abs(left - rectLeft) < this.snapDistance) {
+          left = rectLeft;
+          this.guideX = left;
+          snappedX = true;
+        }
+        // Check right edge
+        else if (Math.abs((left + width) - rectRight) < this.snapDistance) {
+          left = rectRight - width;
+          this.guideX = left + width;
+          snappedX = true;
+        }
       }
 
-      // Check top edge
-      if (Math.abs(top - rectTop) < this.snapDistance) {
-        top = rectTop;
-        this.guideY = top;
+      // Check top edge (only if not already snapped)
+      if (!snappedY) {
+        if (Math.abs(top - rectTop) < this.snapDistance) {
+          top = rectTop;
+          this.guideY = top;
+          snappedY = true;
+        }
+        // Check bottom edge
+        else if (Math.abs((top + height) - rectBottom) < this.snapDistance) {
+          top = rectBottom - height;
+          this.guideY = top + height;
+          snappedY = true;
+        }
       }
-      // Check bottom edge
-      else if (Math.abs((top + height) - rectBottom) < this.snapDistance) {
-        top = rectBottom - height;
-        this.guideY = top + height;
+
+      // Early exit if both dimensions are snapped
+      if (snappedX && snappedY) break;
+    }
+
+    // Check fixed verticals (only if X not already snapped)
+    if (!snappedX) {
+      for (let fx of this.getFixedVerticals()) {
+        if (Math.abs(left - fx) < this.snapDistance) {
+          left = fx;
+          this.guideX = fx;
+          break;
+        } else if (Math.abs((left + width) - fx) < this.snapDistance) {
+          left = fx - width;
+          this.guideX = fx;
+          break;
+        }
       }
     }
 
-    // Check fixed verticals
-    for (let fx of this.getFixedVerticals()) {
-      if (Math.abs(left - fx) < this.snapDistance) {
-        left = fx;
-        this.guideX = fx;
-      } else if (Math.abs((left + width) - fx) < this.snapDistance) {
-        left = fx - width;
-        this.guideX = fx;
-      }
-    }
-
-    // Check fixed horizontals
-    for (let fy of this.getFixedHorizontals()) {
-      if (Math.abs(top - fy) < this.snapDistance) {
-        top = fy;
-        this.guideY = fy;
-      } else if (Math.abs((top + height) - fy) < this.snapDistance) {
-        top = fy - height;
-        this.guideY = fy;
+    // Check fixed horizontals (only if Y not already snapped)
+    if (!snappedY) {
+      for (let fy of this.getFixedHorizontals()) {
+        if (Math.abs(top - fy) < this.snapDistance) {
+          top = fy;
+          this.guideY = fy;
+          break;
+        } else if (Math.abs((top + height) - fy) < this.snapDistance) {
+          top = fy - height;
+          this.guideY = fy;
+          break;
+        }
       }
     }
 
@@ -193,54 +214,73 @@ class SnappingGuides extends HTMLElement {
   }
 
   snapResize(rect, newW, newH, others) {
-    console.log('snapResize: rect.top=', rect.top, 'newH=', newH, 'newBottom=', rect.top + newH);
     this.guideX = null;
     this.guideY = null;
 
     const newRight = rect.left + newW;
     const newBottom = rect.top + newH;
 
+    let snappedX = false;
+    let snappedY = false;
+
     for (const other of others) {
       const otherRect = { left: other.left, top: other.top, right: other.left + other.width, bottom: other.top + other.height };
 
-      // Check right edge to other's left
-      if (Math.abs(newRight - otherRect.left) < this.snapDistance) {
-        newW = otherRect.left - rect.left;
-        this.guideX = rect.left + newW;
+      // Check horizontal snapping (only if not already snapped)
+      if (!snappedX) {
+        // Check right edge to other's left
+        if (Math.abs(newRight - otherRect.left) < this.snapDistance) {
+          newW = otherRect.left - rect.left;
+          this.guideX = rect.left + newW;
+          snappedX = true;
+        }
+        // Check right edge to other's right
+        else if (Math.abs(newRight - otherRect.right) < this.snapDistance) {
+          newW = otherRect.right - rect.left;
+          this.guideX = otherRect.right;
+          snappedX = true;
+        }
       }
-      // Check right edge to other's right
-      if (Math.abs(newRight - otherRect.right) < this.snapDistance) {
-        newW = otherRect.right - rect.left;
-        this.guideX = otherRect.right;
+
+      // Check vertical snapping (only if not already snapped)
+      if (!snappedY) {
+        // Check bottom edge to other's top
+        if (Math.abs(newBottom - otherRect.top) < this.snapDistance) {
+          newH = otherRect.top - rect.top;
+          this.guideY = rect.top + newH;
+          snappedY = true;
+        }
+        // Check bottom edge to other's bottom
+        else if (Math.abs(newBottom - otherRect.bottom) < this.snapDistance) {
+          newH = otherRect.bottom - rect.top;
+          this.guideY = otherRect.bottom;
+          snappedY = true;
+        }
       }
-      // Check bottom edge to other's top
-      if (Math.abs(newBottom - otherRect.top) < this.snapDistance) {
-        newH = otherRect.top - rect.top;
-        this.guideY = rect.top + newH;
-        console.log('snapResize: guideY set to', this.guideY, 'for bottom to top');
-      }
-      // Check bottom edge to other's bottom
-      if (Math.abs(newBottom - otherRect.bottom) < this.snapDistance) {
-        newH = otherRect.bottom - rect.top;
-        this.guideY = otherRect.bottom;
-        console.log('snapResize: guideY set to', this.guideY, 'for bottom to bottom');
+
+      // Early exit if both dimensions are snapped
+      if (snappedX && snappedY) break;
+    }
+
+    // Check fixed verticals for newRight (only if not already snapped)
+    if (!snappedX) {
+      for (let fx of this.getFixedVerticals()) {
+        if (Math.abs(newRight - fx) < this.snapDistance) {
+          newW = fx - rect.left;
+          this.guideX = fx;
+          break;
+        }
       }
     }
 
-    // Check fixed verticals for newRight
-    for (let fx of this.getFixedVerticals()) {
-      if (Math.abs(newRight - fx) < this.snapDistance) {
-        newW = fx - rect.left;
-        this.guideX = fx;
-      }
-    }
-
-    // Check fixed horizontals for newBottom
-    for (let fy of this.getFixedHorizontals()) {
-      if (Math.abs(newBottom - fy) < this.snapDistance) {
-        newH = fy - rect.top;
-        this.guideY = fy;
-        console.log('snapResize: guideY set to', this.guideY, 'for fixed horizontal fy=', fy);
+    // Check fixed horizontals for newBottom (only if not already snapped)
+    if (!snappedY) {
+      for (let fy of this.getFixedHorizontals()) {
+        if (Math.abs(newBottom - fy) < this.snapDistance) {
+          newH = fy - rect.top;
+          this.guideY = fy;
+          break;
+        }
       }
     }
 

@@ -356,6 +356,8 @@ class SnappingCanvas extends HTMLElement {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
 
+      // Cache frequently accessed values
+      const canvasBounds = this.getBoundingClientRect();
       let newLeft = e.clientX - this.offsetX;
       let newTop = e.clientY - this.offsetY;
 
@@ -415,7 +417,6 @@ class SnappingCanvas extends HTMLElement {
       this.guides.setGuideY(null);
       let newW = Math.max(50, this.startW + (e.pageX - this.startX));
       let newH = Math.max(50, this.startH + (e.pageY - this.startY));
-      console.log('resizing: newW=', newW, 'newH=', newH);
       const rectPos = this.resizing.getBoundingClientRect();
       const canvasRect = this.getBoundingClientRect();
       const result = this.guides.snapResize({left: rectPos.left - canvasRect.left, top: rectPos.top - canvasRect.top}, newW, newH, this.otherRects);
@@ -495,12 +496,22 @@ class SnappingCanvas extends HTMLElement {
     const current = this.dragging || this.resizing;
     // When dragging multiple selected rectangles, exclude all selected rectangles from snapping
     const excludeRects = this.selectedRects.length > 1 ? this.selectedRects : [current];
-    this.otherRects = Array.from(this.querySelectorAll('.rect')).filter(r => !excludeRects.includes(r)).map(r => ({
-      left: parseFloat(r.style.left),
-      top: parseFloat(r.style.top),
-      width: r.offsetWidth,
-      height: r.offsetHeight
-    }));
+    const excludeSet = new Set(excludeRects);
+    
+    // Optimize: Use a more efficient filtering approach with Set lookup
+    this.otherRects = [];
+    const allRects = this.querySelectorAll('.rect');
+    for (let i = 0; i < allRects.length; i++) {
+      const r = allRects[i];
+      if (!excludeSet.has(r)) {
+        this.otherRects.push({
+          left: parseFloat(r.style.left),
+          top: parseFloat(r.style.top),
+          width: r.offsetWidth,
+          height: r.offsetHeight
+        });
+      }
+    }
   }
 
   showGuides() {
@@ -510,7 +521,6 @@ class SnappingCanvas extends HTMLElement {
       this.guides.hideVertical();
     }
     if (this.guides.getGuideY() !== null) {
-      console.log('showGuides: calling showHorizontal with guideY=', this.guides.getGuideY());
       this.guides.showHorizontal(this.guides.getGuideY());
     } else {
       this.guides.hideHorizontal();
@@ -686,9 +696,14 @@ class SnappingCanvas extends HTMLElement {
     let snappedTop = newTop;
     let foundAlignment = false;
 
+    // Cache the rectangles query and selected rects set for faster lookup
+    const allRects = this.querySelectorAll('.rect');
+    const selectedSet = new Set(this.selectedRects);
+
     // Check against all other rectangles (exclude all selected rectangles since they're moving together)
-    this.querySelectorAll('.rect').forEach(otherRect => {
-      if (this.selectedRects.includes(otherRect)) return;
+    for (let i = 0; i < allRects.length; i++) {
+      const otherRect = allRects[i];
+      if (selectedSet.has(otherRect)) continue;
 
       const otherBounds = {
         left: parseFloat(otherRect.style.left),
@@ -748,7 +763,7 @@ class SnappingCanvas extends HTMLElement {
         snappedTop = otherBounds.bottom - actualHeight;
         foundAlignment = true;
       }
-    });
+    }
 
     // Return the snapped position if alignment was found
     if (foundAlignment) {
