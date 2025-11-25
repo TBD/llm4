@@ -2,20 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>LLM Agent Node Editor</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- <h1>LLM Agent Node Editor</h1> Removed as per styling plan -->
-
     <div id="toolbar">
-        <!-- Controls will go here -->
         <button id="add-node-btn">Add Node</button>
     </div>
 
-    <div id="editor-area"> <!-- New wrapper div -->
-        <div id="editor-container"> <!-- Container for the canvas -->
+    <div id="editor-area">
+        <div id="editor-container">
             <div id="node-canvas">
                 <!-- Nodes will be dynamically added here -->
             </div>
@@ -23,9 +20,13 @@
 
         <div id="inspector">
             <h2>Node Inspector</h2>
-            <!-- Node properties will be displayed and edited here -->
+            <p id="inspector-hint">Select a node to view its properties</p>
         </div>
     </div>
+
+    <button id="inspector-toggle" class="inspector-toggle" aria-label="Toggle Inspector">
+        ℹ
+    </button>
 
     <script src="editor.js"></script>
 </body>

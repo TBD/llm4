@@ -25,6 +25,11 @@ class SnappingCanvas extends HTMLElement {
     this.alignmentGuides = []; // Store active alignment guides
   }
 
+  // Helper method to check if we're on a mobile-sized viewport
+  isMobileViewport() {
+    return window.innerWidth <= 768;
+  }
+
   connectedCallback() {
     // Create guides
     this.guides = document.createElement('snapping-guides');
@@ -48,12 +53,16 @@ class SnappingCanvas extends HTMLElement {
         z-index: 10002;
         font-family: inherit;
         font-size: 12px;
+        max-width: calc(100vw - 20px);
+        flex-wrap: wrap;
+        justify-content: center;
       }
 
       .align-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         padding: 6px 8px;
         border: none;
         background: none;
@@ -61,7 +70,8 @@ class SnappingCanvas extends HTMLElement {
         cursor: pointer;
         color: #333;
         transition: background-color 0.2s;
-        min-width: 60px;
+        min-width: 48px;
+        min-height: 48px;
       }
 
       .align-btn:hover {
@@ -74,7 +84,7 @@ class SnappingCanvas extends HTMLElement {
       }
 
       .align-icon {
-        font-size: 14px;
+        font-size: 16px;
         margin-bottom: 2px;
         user-select: none;
       }
@@ -84,6 +94,24 @@ class SnappingCanvas extends HTMLElement {
         text-align: center;
         line-height: 1;
         user-select: none;
+      }
+
+      /* Mobile responsive alignment toolbar */
+      @media (max-width: 480px) {
+        .alignment-toolbar {
+          padding: 6px;
+          gap: 4px;
+          top: 5px;
+        }
+
+        .align-btn {
+          min-width: 40px;
+          padding: 4px 6px;
+        }
+
+        .align-label {
+          font-size: 9px;
+        }
       }
     `;
     this.appendChild(style);
@@ -131,119 +159,179 @@ class SnappingCanvas extends HTMLElement {
     style.textContent += `
       .help-button {
         position: absolute;
-        bottom: 4em;
+        bottom: 10px;
         right: 10px;
-        padding: 4px 8px;
+        padding: 12px 16px;
+        min-width: 48px;
+        min-height: 48px;
         background: rgba(25, 159, 255, 0.9);
         border: 1px solid #19f;
-        border-radius: 4px;
-        font-size: 12px;
+        border-radius: 8px;
+        font-size: 14px;
         cursor: pointer;
         color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+      }
+
+      .help-button:active {
+        background: rgba(25, 159, 255, 1);
       }
 
       .help-text {
         position: absolute;
-        bottom: 4em;
-        right: 60px;
-        background: rgba(0, 0, 0, 0.8);
+        bottom: 70px;
+        right: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.9);
         color: #fff;
-        padding: 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        max-width: 300px;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        max-width: none;
         display: none;
         z-index: 10003;
       }
+
+      @media (min-width: 769px) {
+        .help-text {
+          left: auto;
+          max-width: 350px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .help-button {
+          bottom: 80px;
+        }
+
+        .help-text {
+          bottom: 140px;
+          font-size: 12px;
+          padding: 10px;
+        }
+      }
     `;
 
-    // Create help text
+    // Create help text with mobile-friendly content
     this.helpText = document.createElement('div');
     this.helpText.className = 'help-text';
-    this.helpText.textContent = 'H: horizontal guide | V: vertical guide | R: remove guides | Alt+drag: duplicate | Backspace: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
+    this.helpText.innerHTML = this.isMobileViewport() 
+      ? '<strong>Touch Controls:</strong><br>• Tap to select<br>• Drag to move<br>• Use toolbar below for Clone/Delete<br>• Select 2+ items for alignment options'
+      : 'H: horizontal guide | V: vertical guide | R: remove guides | Alt+drag: duplicate | Backspace: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
     this.appendChild(this.helpText);
 
-    // Help button for desktop
-    if (!('ontouchstart' in window)) {
-      this.helpButton = document.createElement('button');
-      this.helpButton.className = 'help-button';
-      this.helpButton.textContent = 'Help';
-      this.helpButton.addEventListener('click', () => {
-        this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
-      });
-      this.appendChild(this.helpButton);
-    }
+    // Always create help button (CSS will position it appropriately)
+    this.helpButton = document.createElement('button');
+    this.helpButton.className = 'help-button';
+    this.helpButton.textContent = '?';
+    this.helpButton.setAttribute('aria-label', 'Help');
+    this.helpButton.addEventListener('click', () => {
+      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
+    });
+    this.appendChild(this.helpButton);
 
-    // Mobile toolbar
-    if ('ontouchstart' in window) {
-      style.textContent += `
+    // Mobile toolbar (always created, visibility controlled by CSS)
+    style.textContent += `
+      .mobile-toolbar {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 8px 12px;
+        z-index: 10002;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .mobile-btn {
+        padding: 12px 16px;
+        border: none;
+        background: #19f;
+        color: white;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        min-width: 48px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .mobile-btn:active {
+        background: #007acc;
+        transform: scale(0.95);
+      }
+
+      /* Show mobile toolbar on small screens */
+      @media (max-width: 768px) {
         .mobile-toolbar {
-          position: absolute;
-          bottom: 10px;
-          left: 50%;
-          transform: translateX(-50%);
           display: flex;
-          gap: 10px;
-          background: rgba(255, 255, 255, 0.95);
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          padding: 10px;
-          z-index: 10002;
+        }
+
+        .help-button {
+          bottom: 80px;
+        }
+
+        .help-text {
+          bottom: 140px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .mobile-toolbar {
+          padding: 6px 10px;
+          gap: 6px;
         }
 
         .mobile-btn {
-          padding: 10px 15px;
-          border: none;
-          background: #19f;
-          color: white;
-          border-radius: 6px;
-          font-size: 14px;
-          cursor: pointer;
-          min-width: 70px;
+          padding: 10px 14px;
+          font-size: 13px;
         }
 
-        .mobile-btn:active {
-          background: #007acc;
+        .help-button {
+          bottom: 75px;
         }
-      `;
 
-      // Larger resize handles on mobile
-      const resizeStyle = document.createElement('style');
-      resizeStyle.textContent = `
-        .resize-handle {
-          width: 48px !important;
-          height: 48px !important;
-          right: -24px !important;
-          bottom: -24px !important;
+        .help-text {
+          bottom: 135px;
         }
-      `;
-      this.appendChild(resizeStyle);
+      }
+    `;
 
-      this.mobileToolbar = document.createElement('div');
-      this.mobileToolbar.className = 'mobile-toolbar';
+    this.mobileToolbar = document.createElement('div');
+    this.mobileToolbar.className = 'mobile-toolbar';
 
-      const cloneBtn = document.createElement('button');
-      cloneBtn.className = 'mobile-btn';
-      cloneBtn.textContent = 'Clone';
-      cloneBtn.addEventListener('click', () => this.duplicateSelection());
-      this.mobileToolbar.appendChild(cloneBtn);
+    const cloneBtn = document.createElement('button');
+    cloneBtn.className = 'mobile-btn';
+    cloneBtn.textContent = 'Clone';
+    cloneBtn.addEventListener('click', () => this.duplicateSelection());
+    this.mobileToolbar.appendChild(cloneBtn);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'mobile-btn';
-      deleteBtn.textContent = 'Delete';
-      deleteBtn.addEventListener('click', () => this.eraseSelection());
-      this.mobileToolbar.appendChild(deleteBtn);
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'mobile-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => this.eraseSelection());
+    this.mobileToolbar.appendChild(deleteBtn);
 
-      const helpBtn = document.createElement('button');
-      helpBtn.className = 'mobile-btn';
-      helpBtn.textContent = 'Help';
-      helpBtn.addEventListener('click', () => {
-        this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
-      });
-      this.mobileToolbar.appendChild(helpBtn);
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'mobile-btn';
+    helpBtn.textContent = 'Help';
+    helpBtn.addEventListener('click', () => {
+      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
+    });
+    this.mobileToolbar.appendChild(helpBtn);
 
-      this.appendChild(this.mobileToolbar);
-    }
+    this.appendChild(this.mobileToolbar);
 
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
@@ -564,8 +652,7 @@ class SnappingCanvas extends HTMLElement {
 
   updateToolbarVisibility() {
     if (this.toolbar) {
-      const isMobile = 'ontouchstart' in window;
-      if (this.selectedRects.length > 1 || (isMobile && this.selectedRects.length > 0)) {
+      if (this.selectedRects.length > 1 || (this.isMobileViewport() && this.selectedRects.length > 0)) {
         this.toolbar.style.display = 'flex';
       } else {
         this.toolbar.style.display = 'none';
@@ -574,8 +661,7 @@ class SnappingCanvas extends HTMLElement {
   }
 
   updateSelectionVisuals() {
-    const isMobile = 'ontouchstart' in window;
-    const shadow = isMobile ? '0 0 20px -5px #19f' : '0 0 100px -20px #19f';
+    const shadow = this.isMobileViewport() ? '0 0 20px -5px #19f' : '0 0 100px -20px #19f';
     // Update all rects
     this.querySelectorAll('.rect').forEach(rect => {
       if (this.selectedRects.includes(rect)) {
