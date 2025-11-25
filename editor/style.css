@@ -12,6 +12,7 @@ body {
     padding: 10px;
     border-bottom: 1px solid #ccc;
     background-color: #f8f8f8; /* Light background for toolbar */
+    flex-shrink: 0; /* Prevent toolbar from shrinking */
 }
 
 /* New #editor-area to wrap canvas and inspector for side-by-side layout */
@@ -25,26 +26,21 @@ body {
 #editor-container {
     flex-grow: 1; /* Canvas container takes up most of the space */
     display: flex; /* To allow node-canvas to grow */
-    /* background-color: #fafafa; /* Light grey for the container */
-    /* border-right: 1px solid #ccc; */ /* Separator from inspector */
-    /* No direct height, flex-grow handles it */
+    min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 #node-canvas {
     flex-grow: 1; /* Canvas takes available space in editor-container */
     position: relative; /* Important for absolute positioning of nodes */
     background-color: #e9e9e9; /* Light background for the canvas */
-    min-height: 600px; /* Minimum height */
-    /* width: 80%; /* Take 80% of the editor-area or editor-container */
-    /* The width will be handled by flex-grow on editor-container vs inspector's fixed width */
+    min-height: 400px; /* Minimum height */
     overflow: auto; /* Add scrollbars if nodes go out of bounds */
     border-right: 1px solid #ccc; /* Visual separation from inspector if inspector is next to it */
 }
 
 #inspector {
-    width: 20%; /* Takes 20% of the editor-area width */
-    min-width: 200px; /* Minimum width for usability */
-    max-width: 300px; /* Maximum width */
+    width: 250px; /* Fixed width for desktop */
+    flex-shrink: 0; /* Don't shrink */
     padding: 15px;
     border-left: 1px solid #ccc; /* Visual separation from canvas */
     background-color: #f9f9f9; /* Slightly different background */
@@ -66,18 +62,122 @@ body {
 
 /* Basic styling for the button in the toolbar */
 #add-node-btn {
-    padding: 8px 15px;
+    padding: 12px 20px;
+    min-height: 48px;
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 #add-node-btn:hover {
     background-color: #0056b3;
 }
 
+#add-node-btn:active {
+    transform: scale(0.98);
+}
+
 h1, h2 {
     margin-top: 0; /* Remove default top margin for headings */
+}
+
+/* Mobile Inspector Toggle Button */
+.inspector-toggle {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.inspector-toggle:active {
+    transform: scale(0.95);
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    #editor-area {
+        flex-direction: column;
+    }
+
+    #node-canvas {
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        min-height: 300px;
+        flex-grow: 1;
+    }
+
+    #inspector {
+        width: 100%;
+        max-height: 40vh;
+        border-left: none;
+        border-top: 1px solid #ccc;
+        padding: 12px;
+    }
+
+    #inspector.collapsed {
+        display: none;
+    }
+
+    .inspector-toggle {
+        display: flex;
+    }
+
+    .node {
+        width: 120px;
+        height: 60px;
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    #add-node-btn {
+        flex-grow: 1;
+        margin: 0 5px;
+    }
+
+    #toolbar {
+        padding: 8px;
+    }
+
+    h2 {
+        font-size: 1.1em;
+    }
+}
+
+@media (max-width: 480px) {
+    #inspector {
+        max-height: 35vh;
+        padding: 10px;
+    }
+
+    .node {
+        width: 100px;
+        height: 50px;
+        padding: 6px;
+        font-size: 11px;
+    }
+
+    #add-node-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    #toolbar {
+        padding: 6px;
+    }
 }

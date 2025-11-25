@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const nodeCanvas = document.getElementById('node-canvas');
     const addNodeBtn = document.getElementById('add-node-btn');
+    const inspector = document.getElementById('inspector');
+    const inspectorToggle = document.getElementById('inspector-toggle');
 
     let nodes = [];
     let nodeIdCounter = 0; // Simple counter for unique IDs
@@ -9,6 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDragging = false;
     let offsetX = 0;
     let offsetY = 0;
+
+    // Mobile inspector toggle functionality
+    if (inspectorToggle) {
+        inspectorToggle.addEventListener('click', () => {
+            inspector.classList.toggle('collapsed');
+            inspectorToggle.textContent = inspector.classList.contains('collapsed') ? 'ℹ' : '✕';
+        });
+    }
 
     // Function to render all nodes on the canvas
     function renderNodes() {
@@ -55,8 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderNodes();
     });
 
-    // Drag and Drop Functionality
-    nodeCanvas.addEventListener('mousedown', (event) => {
+    // Unified pointer event handling for both mouse and touch
+    function handlePointerDown(event) {
         const targetNodeElement = event.target.closest('.node');
         if (!targetNodeElement) return; // Click was not on a node
 
@@ -67,46 +77,44 @@ document.addEventListener('DOMContentLoaded', () => {
         targetNodeElement.style.cursor = 'grabbing';
         targetNodeElement.style.zIndex = 1000; // Bring dragged node to front
 
-        // Calculate offset from mouse click to node's top-left corner
-        const nodeRect = targetNodeElement.getBoundingClientRect();
+        // Calculate offset from pointer to node's top-left corner
         const canvasRect = nodeCanvas.getBoundingClientRect();
-
-        // offsetX = event.clientX - nodeRect.left; // Offset relative to node's own coordinate system
-        // offsetY = event.clientY - nodeRect.top;
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
         
-        // Store offset relative to canvas, but based on node's current position
-        // This means offsetX is the difference between mouse click X on canvas and node's X
-        offsetX = event.clientX - canvasRect.left - draggedNode.x;
-        offsetY = event.clientY - canvasRect.top - draggedNode.y;
+        offsetX = clientX - canvasRect.left - draggedNode.x;
+        offsetY = clientY - canvasRect.top - draggedNode.y;
 
+        // Prevent scrolling on touch devices
+        if (event.touches) {
+            event.preventDefault();
+        }
+    }
 
-    });
-
-    document.addEventListener('mousemove', (event) => {
+    function handlePointerMove(event) {
         if (!isDragging || !draggedNode) return;
 
         const canvasRect = nodeCanvas.getBoundingClientRect();
-        // Calculate mouse position relative to the nodeCanvas
-        let mouseX = event.clientX - canvasRect.left;
-        let mouseY = event.clientY - canvasRect.top;
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+        
+        // Calculate pointer position relative to the nodeCanvas
+        let pointerX = clientX - canvasRect.left;
+        let pointerY = clientY - canvasRect.top;
 
         // New position for the node's top-left corner
-        let newX = mouseX - offsetX;
-        let newY = mouseY - offsetY;
+        draggedNode.x = pointerX - offsetX;
+        draggedNode.y = pointerY - offsetY;
 
-        // Optional: Constrain node position within canvas boundaries
-        // newX = Math.max(0, Math.min(newX, canvasRect.width - draggedNodeElement.offsetWidth));
-        // newY = Math.max(0, Math.min(newY, canvasRect.height - draggedNodeElement.offsetHeight));
-        // Note: draggedNodeElement.offsetWidth/Height would require getting the element again.
-        // For now, let's allow it to go out of bounds slightly for simplicity.
+        renderNodes();
 
-        draggedNode.x = newX;
-        draggedNode.y = newY;
+        // Prevent scrolling on touch devices
+        if (event.touches) {
+            event.preventDefault();
+        }
+    }
 
-        renderNodes(); // Re-render all nodes (can be optimized later)
-    });
-
-    document.addEventListener('mouseup', (event) => {
+    function handlePointerUp() {
         if (isDragging && draggedNode) {
             const draggedNodeElement = document.getElementById(draggedNode.id);
             if (draggedNodeElement) {
@@ -117,9 +125,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         isDragging = false;
         draggedNode = null;
-        // renderNodes(); // Ensure final state is rendered if not done in mousemove
-        // Already done in mousemove, so not strictly necessary here unless optimization changes
-    });
+    }
+
+    // Mouse events
+    nodeCanvas.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('mousemove', handlePointerMove);
+    document.addEventListener('mouseup', handlePointerUp);
+
+    // Touch events for mobile support
+    nodeCanvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    document.addEventListener('touchmove', handlePointerMove, { passive: false });
+    document.addEventListener('touchend', handlePointerUp);
 
     // Initial render (if any nodes were pre-loaded, though we start empty)
     renderNodes();
