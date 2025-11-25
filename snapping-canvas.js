@@ -27,7 +27,7 @@ class SnappingCanvas extends HTMLElement {
 
   // Helper method to check if we're on a mobile-sized viewport
   isMobileViewport() {
-    return window.innerWidth <= 768;
+    return window.innerWidth < 768;
   }
 
   connectedCallback() {
