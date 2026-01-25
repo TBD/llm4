@@ -23,6 +23,29 @@ class SnappingCanvas extends HTMLElement {
     this.marqueeElement = null;
     this.dragOffsets = []; // Store relative positions for multi-drag
     this.alignmentGuides = []; // Store active alignment guides
+    this.lastTapTime = 0;
+    this.lastTapX = 0;
+    this.lastTapY = 0;
+    this.componentTemplates = [
+      {
+        name: 'Button',
+        html: '<button style="padding: 10px 20px; background: #19f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Click me</button>',
+        width: 120,
+        height: 80
+      },
+      {
+        name: 'Text Box',
+        html: '<div style="padding: 15px; background: #f5f5f5; border-radius: 4px; font-size: 14px; color: #333;">Text content here</div>',
+        width: 180,
+        height: 100
+      },
+      {
+        name: 'Card',
+        html: '<div style="padding: 20px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h3 style="margin: 0 0 10px 0; font-size: 16px;">Card Title</h3><p style="margin: 0; font-size: 13px; color: #666;">Card content goes here</p></div>',
+        width: 200,
+        height: 140
+      }
+    ];
   }
 
   // Helper method to check if we're on a mobile-sized viewport
@@ -35,9 +58,56 @@ class SnappingCanvas extends HTMLElement {
     this.guides = document.createElement('snapping-guides');
     this.appendChild(this.guides);
 
-    // Create and append styles for alignment toolbar
+    // Create and append styles for alignment toolbar and component picker
     const style = document.createElement('style');
     style.textContent = `
+      .component-picker {
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        display: none;
+        gap: 10px;
+        flex-direction: column;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 10003;
+        min-width: 150px;
+      }
+
+      .component-option {
+        padding: 12px 16px;
+        border: 1px solid #ddd;
+        background: #f9f9f9;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        text-align: center;
+        transition: all 0.2s;
+        user-select: none;
+      }
+
+      .component-option:hover {
+        background: #19f;
+        color: white;
+        border-color: #19f;
+      }
+
+      .component-option:active {
+        transform: scale(0.95);
+      }
+
+      @media (max-width: 768px) {
+        .component-option {
+          padding: 14px 18px;
+          font-size: 15px;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
+
       .alignment-toolbar {
         position: absolute;
         top: 10px;
@@ -116,6 +186,23 @@ class SnappingCanvas extends HTMLElement {
     `;
     this.appendChild(style);
 
+    // Create component picker
+    this.componentPicker = document.createElement('div');
+    this.componentPicker.className = 'component-picker';
+    this.componentTemplates.forEach((template, index) => {
+      const option = document.createElement('div');
+      option.className = 'component-option';
+      option.textContent = template.name;
+      option.dataset.templateIndex = index;
+      option.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.addComponentFromTemplate(index);
+        this.hideComponentPicker();
+      });
+      this.componentPicker.appendChild(option);
+    });
+    this.appendChild(this.componentPicker);
+
     // Create toolbar
     this.toolbar = document.createElement('div');
     this.toolbar.className = 'alignment-toolbar';
@@ -155,84 +242,6 @@ class SnappingCanvas extends HTMLElement {
     `;
     this.appendChild(this.toolbar);
 
-    // Add styles for help
-    style.textContent += `
-      .help-button {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        padding: 12px 16px;
-        min-width: 48px;
-        min-height: 48px;
-        background: rgba(25, 159, 255, 0.9);
-        border: 1px solid #19f;
-        border-radius: 8px;
-        font-size: 14px;
-        cursor: pointer;
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-sizing: border-box;
-      }
-
-      .help-button:active {
-        background: rgba(25, 159, 255, 1);
-      }
-
-      .help-text {
-        position: absolute;
-        bottom: 70px;
-        right: 10px;
-        left: 10px;
-        background: rgba(0, 0, 0, 0.9);
-        color: #fff;
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 13px;
-        line-height: 1.5;
-        max-width: none;
-        display: none;
-        z-index: 10003;
-      }
-
-      @media (min-width: 769px) {
-        .help-text {
-          left: auto;
-          max-width: 350px;
-        }
-      }
-
-      @media (max-width: 480px) {
-        .help-button {
-          bottom: 80px;
-        }
-
-        .help-text {
-          bottom: 140px;
-          font-size: 12px;
-          padding: 10px;
-        }
-      }
-    `;
-
-    // Create help text with mobile-friendly content
-    this.helpText = document.createElement('div');
-    this.helpText.className = 'help-text';
-    this.helpText.innerHTML = this.isMobileViewport() 
-      ? '<strong>Touch Controls:</strong><br>• Tap to select<br>• Drag to move<br>• Use toolbar below for Clone/Delete<br>• Select 2+ items for alignment options'
-      : 'H: horizontal guide | V: vertical guide | R: remove guides | Alt+drag: duplicate | Backspace: erase selection | B: toggle borders/handles | Cmd+A: select all | Shift/Cmd+click: multi-select | Marquee: drag on empty canvas | Select 2+ objects: alignment toolbar | Drag near edges: auto-align';
-    this.appendChild(this.helpText);
-
-    // Always create help button (CSS will position it appropriately)
-    this.helpButton = document.createElement('button');
-    this.helpButton.className = 'help-button';
-    this.helpButton.textContent = '?';
-    this.helpButton.setAttribute('aria-label', 'Help');
-    this.helpButton.addEventListener('click', () => {
-      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
-    });
-    this.appendChild(this.helpButton);
 
     // Mobile toolbar (always created, visibility controlled by CSS)
     style.textContent += `
@@ -277,14 +286,6 @@ class SnappingCanvas extends HTMLElement {
         .mobile-toolbar {
           display: flex;
         }
-
-        .help-button {
-          bottom: 80px;
-        }
-
-        .help-text {
-          bottom: 140px;
-        }
       }
 
       @media (max-width: 480px) {
@@ -296,14 +297,6 @@ class SnappingCanvas extends HTMLElement {
         .mobile-btn {
           padding: 10px 14px;
           font-size: 13px;
-        }
-
-        .help-button {
-          bottom: 75px;
-        }
-
-        .help-text {
-          bottom: 135px;
         }
       }
     `;
@@ -322,14 +315,6 @@ class SnappingCanvas extends HTMLElement {
     deleteBtn.textContent = 'Delete';
     deleteBtn.addEventListener('click', () => this.eraseSelection());
     this.mobileToolbar.appendChild(deleteBtn);
-
-    const helpBtn = document.createElement('button');
-    helpBtn.className = 'mobile-btn';
-    helpBtn.textContent = 'Help';
-    helpBtn.addEventListener('click', () => {
-      this.helpText.style.display = this.helpText.style.display === 'block' ? 'none' : 'block';
-    });
-    this.mobileToolbar.appendChild(helpBtn);
 
     this.appendChild(this.mobileToolbar);
 
@@ -352,6 +337,25 @@ class SnappingCanvas extends HTMLElement {
 
     // Capture the pointer for dragging outside bounds
     this.setPointerCapture(e.pointerId);
+
+    // Check for double tap on empty canvas
+    if (this.isEmptyClick(e.target)) {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - this.lastTapTime;
+      const distX = Math.abs(e.clientX - this.lastTapX);
+      const distY = Math.abs(e.clientY - this.lastTapY);
+
+      if (timeDiff < 300 && distX < 20 && distY < 20) {
+        // Double tap detected
+        e.preventDefault();
+        this.showComponentPicker(e.clientX, e.clientY);
+        return;
+      }
+
+      this.lastTapTime = currentTime;
+      this.lastTapX = e.clientX;
+      this.lastTapY = e.clientY;
+    }
 
     if (e.target.classList.contains('resize-handle')) {
       // Resizing
@@ -1081,6 +1085,57 @@ class SnappingCanvas extends HTMLElement {
     this.selectedRects = [];
     this.clearGuides();
     this.updateToolbarVisibility();
+  }
+
+  showComponentPicker(x, y) {
+    const canvasBounds = this.getBoundingClientRect();
+    this.componentPicker.style.left = (x - canvasBounds.left) + 'px';
+    this.componentPicker.style.top = (y - canvasBounds.top) + 'px';
+    this.componentPicker.style.display = 'flex';
+    this.pickerX = x - canvasBounds.left;
+    this.pickerY = y - canvasBounds.top;
+
+    // Add click listener to close picker when clicking outside
+    const closeHandler = (e) => {
+      if (!this.componentPicker.contains(e.target) && e.target !== this.componentPicker) {
+        this.hideComponentPicker();
+        document.removeEventListener('pointerdown', closeHandler);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('pointerdown', closeHandler);
+    }, 100);
+  }
+
+  hideComponentPicker() {
+    this.componentPicker.style.display = 'none';
+  }
+
+  addComponentFromTemplate(templateIndex) {
+    const template = this.componentTemplates[templateIndex];
+    if (!template) return;
+
+    const newRect = document.createElement('div');
+    newRect.className = 'rect';
+    newRect.style.width = template.width + 'px';
+    newRect.style.height = template.height + 'px';
+    newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+    newRect.innerHTML = template.html;
+
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    if (!this.bordersVisible) handle.style.display = 'none';
+    newRect.appendChild(handle);
+
+    // Position at the picker location (centered on click point)
+    newRect.style.left = (this.pickerX - template.width / 2) + 'px';
+    newRect.style.top = (this.pickerY - template.height / 2) + 'px';
+
+    this.appendChild(newRect);
+
+    // Select the new component
+    this.deselectAll();
+    this.selectRect(newRect);
   }
 
 
