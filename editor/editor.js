@@ -256,13 +256,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+        // Don't handle shortcuts if user is typing in an input field
+        const isTyping = e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'TEXTAREA' || 
+                        e.target.isContentEditable;
+        
         // Delete or Backspace to delete selected node
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode && !isTyping) {
             e.preventDefault();
             deleteSelectedNode();
         }
         // Escape to deselect
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !isTyping) {
             deselectNode();
         }
     });
