@@ -1,16 +1,45 @@
 document.addEventListener('DOMContentLoaded', () => {
     const nodeCanvas = document.getElementById('node-canvas');
     const addNodeBtn = document.getElementById('add-node-btn');
+    const deleteNodeBtn = document.getElementById('delete-node-btn');
     const inspector = document.getElementById('inspector');
     const inspectorToggle = document.getElementById('inspector-toggle');
 
     let nodes = [];
     let nodeIdCounter = 0; // Simple counter for unique IDs
+    let selectedNode = null; // Track currently selected node
 
     let draggedNode = null;
     let isDragging = false;
     let offsetX = 0;
     let offsetY = 0;
+    
+    // Load saved nodes from localStorage on startup
+    function loadNodesFromStorage() {
+        try {
+            const saved = localStorage.getItem('llm4-nodes');
+            if (saved) {
+                const data = JSON.parse(saved);
+                nodes = data.nodes || [];
+                nodeIdCounter = data.nodeIdCounter || 0;
+                renderNodes();
+            }
+        } catch (e) {
+            console.error('Failed to load nodes from storage:', e);
+        }
+    }
+    
+    // Save nodes to localStorage
+    function saveNodesToStorage() {
+        try {
+            localStorage.setItem('llm4-nodes', JSON.stringify({
+                nodes: nodes,
+                nodeIdCounter: nodeIdCounter
+            }));
+        } catch (e) {
+            console.error('Failed to save nodes to storage:', e);
+        }
+    }
 
     // Mobile inspector toggle functionality
     if (inspectorToggle) {
@@ -33,11 +62,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 nodeEl.id = node.id;
                 nodeEl.textContent = node.name;
                 nodeCanvas.appendChild(nodeEl);
+                
+                // Add click handler for selection
+                nodeEl.addEventListener('click', (e) => {
+                    if (!isDragging) {
+                        selectNode(node);
+                        e.stopPropagation();
+                    }
+                });
             }
             
             // Update position (this is the only thing that changes during drag)
             nodeEl.style.left = `${node.x}px`;
             nodeEl.style.top = `${node.y}px`;
+            
+            // Update selection state
+            if (selectedNode && selectedNode.id === node.id) {
+                nodeEl.classList.add('selected');
+            } else {
+                nodeEl.classList.remove('selected');
+            }
         });
         
         // Remove nodes that no longer exist in the nodes array
@@ -49,6 +93,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 nodeEl.remove();
             }
         });
+    }
+    
+    // Function to select a node and update inspector
+    function selectNode(node) {
+        selectedNode = node;
+        renderNodes();
+        updateInspector();
+        updateToolbar();
+    }
+    
+    // Function to deselect current node
+    function deselectNode() {
+        selectedNode = null;
+        renderNodes();
+        updateInspector();
+        updateToolbar();
+    }
+    
+    // Function to update toolbar buttons based on selection state
+    function updateToolbar() {
+        if (deleteNodeBtn) {
+            deleteNodeBtn.disabled = !selectedNode;
+        }
+    }
+    
+    // Function to update inspector panel with node properties
+    function updateInspector() {
+        const inspectorHint = document.getElementById('inspector-hint');
+        
+        if (selectedNode) {
+            inspectorHint.innerHTML = `
+                <strong>Node ID:</strong> ${selectedNode.id}<br>
+                <strong>Name:</strong> ${selectedNode.name}<br>
+                <strong>Type:</strong> ${selectedNode.type}<br>
+                <strong>Position:</strong> (${Math.round(selectedNode.x)}, ${Math.round(selectedNode.y)})
+            `;
+        } else {
+            inspectorHint.textContent = 'Select a node to view its properties';
+        }
+    }
+    
+    // Function to delete selected node
+    function deleteSelectedNode() {
+        if (selectedNode) {
+            const index = nodes.findIndex(n => n.id === selectedNode.id);
+            if (index !== -1) {
+                nodes.splice(index, 1);
+                selectedNode = null;
+                renderNodes();
+                updateInspector();
+                saveNodesToStorage();
+            }
+        }
     }
 
     // Add Node functionality
@@ -63,7 +160,15 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         nodes.push(newNode);
         renderNodes();
+        saveNodesToStorage();
     });
+    
+    // Delete Node functionality
+    if (deleteNodeBtn) {
+        deleteNodeBtn.addEventListener('click', () => {
+            deleteSelectedNode();
+        });
+    }
 
     // Unified pointer event handling for both mouse and touch
     function handlePointerDown(event) {
@@ -72,6 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         draggedNode = nodes.find(n => n.id === targetNodeElement.id);
         if (!draggedNode) return;
+        
+        // Select the node being dragged
+        selectNode(draggedNode);
 
         isDragging = true;
         targetNodeElement.style.cursor = 'grabbing';
@@ -121,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 draggedNodeElement.style.cursor = 'grab';
                 draggedNodeElement.style.zIndex = ''; // Reset z-index
             }
+            // Save position after drag
+            saveNodesToStorage();
         }
         
         isDragging = false;
@@ -136,7 +246,28 @@ document.addEventListener('DOMContentLoaded', () => {
     nodeCanvas.addEventListener('touchstart', handlePointerDown, { passive: false });
     document.addEventListener('touchmove', handlePointerMove, { passive: false });
     document.addEventListener('touchend', handlePointerUp);
+    
+    // Click on canvas to deselect
+    nodeCanvas.addEventListener('click', (e) => {
+        if (e.target === nodeCanvas) {
+            deselectNode();
+        }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Delete or Backspace to delete selected node
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+            e.preventDefault();
+            deleteSelectedNode();
+        }
+        // Escape to deselect
+        if (e.key === 'Escape') {
+            deselectNode();
+        }
+    });
 
-    // Initial render (if any nodes were pre-loaded, though we start empty)
+    // Load saved nodes and initial render
+    loadNodesFromStorage();
     renderNodes();
 });

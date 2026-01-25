@@ -13,6 +13,7 @@ body {
     border-bottom: 1px solid #ccc;
     background-color: #f8f8f8; /* Light background for toolbar */
     flex-shrink: 0; /* Prevent toolbar from shrinking */
+    gap: 8px; /* Add spacing between buttons */
 }
 
 /* New #editor-area to wrap canvas and inspector for side-by-side layout */
@@ -58,10 +59,20 @@ body {
     cursor: grab;
     user-select: none; /* Prevent text selection when dragging */
     box-shadow: 2px 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.node:hover {
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.15);
+}
+
+.node.selected {
+    border: 2px solid #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
 }
 
 /* Basic styling for the button in the toolbar */
-#add-node-btn {
+#add-node-btn, #delete-node-btn {
     padding: 12px 20px;
     min-height: 48px;
     background-color: #007bff;
@@ -73,12 +84,26 @@ body {
     font-weight: 500;
 }
 
-#add-node-btn:hover {
+#add-node-btn:hover, #delete-node-btn:hover {
     background-color: #0056b3;
 }
 
-#add-node-btn:active {
+#add-node-btn:active, #delete-node-btn:active {
     transform: scale(0.98);
+}
+
+#delete-node-btn {
+    background-color: #dc3545;
+}
+
+#delete-node-btn:hover {
+    background-color: #c82333;
+}
+
+#delete-node-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 h1, h2 {
@@ -146,6 +171,11 @@ h1, h2 {
     }
 
     #add-node-btn {
+        flex-grow: 1;
+        margin: 0 5px;
+    }
+    
+    #delete-node-btn {
         flex-grow: 1;
         margin: 0 5px;
     }

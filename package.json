@@ -1,0 +1,28 @@
+{
+  "name": "llm4",
+  "version": "0.1.0",
+  "description": "LLM Agent Node Editor with Snapping Canvas - A web-based tool for creating and managing LLM agent workflows",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "dev": "python3 -m http.server 8080"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TBD/llm4.git"
+  },
+  "keywords": [
+    "llm",
+    "agent",
+    "node-editor",
+    "canvas",
+    "workflow",
+    "visual-programming"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TBD/llm4/issues"
+  },
+  "homepage": "https://github.com/TBD/llm4#readme"
+}
