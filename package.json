@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Snapping Canvas and Guides System",
   "scripts": {
-    "dev": "python3 -m http.server 8080 --bind 0.0.0.0",
+    "dev": "npx serve -l 8080",
     "start": "npm run dev"
   },
   "keywords": ["canvas", "snapping", "guides", "web-components"],
