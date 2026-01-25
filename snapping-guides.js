@@ -145,6 +145,8 @@ class SnappingGuides extends HTMLElement {
       const rectTop = rect.top;
       const rectRight = rectLeft + rect.width;
       const rectBottom = rectTop + rect.height;
+      const rectCenterX = rectLeft + rect.width / 2;
+      const rectCenterY = rectTop + rect.height / 2;
 
       // Check left edge (only if not already snapped)
       if (!snappedX) {
@@ -157,6 +159,12 @@ class SnappingGuides extends HTMLElement {
         else if (Math.abs((left + width) - rectRight) < this.snapDistance) {
           left = rectRight - width;
           this.guideX = left + width;
+          snappedX = true;
+        }
+        // Check center horizontal alignment
+        else if (Math.abs((left + width / 2) - rectCenterX) < this.snapDistance) {
+          left = rectCenterX - width / 2;
+          this.guideX = rectCenterX;
           snappedX = true;
         }
       }
@@ -172,6 +180,12 @@ class SnappingGuides extends HTMLElement {
         else if (Math.abs((top + height) - rectBottom) < this.snapDistance) {
           top = rectBottom - height;
           this.guideY = top + height;
+          snappedY = true;
+        }
+        // Check center vertical alignment
+        else if (Math.abs((top + height / 2) - rectCenterY) < this.snapDistance) {
+          top = rectCenterY - height / 2;
+          this.guideY = rectCenterY;
           snappedY = true;
         }
       }
@@ -224,7 +238,14 @@ class SnappingGuides extends HTMLElement {
     let snappedY = false;
 
     for (const other of others) {
-      const otherRect = { left: other.left, top: other.top, right: other.left + other.width, bottom: other.top + other.height };
+      const otherRect = {
+        left: other.left,
+        top: other.top,
+        right: other.left + other.width,
+        bottom: other.top + other.height,
+        centerX: other.left + other.width / 2,
+        centerY: other.top + other.height / 2
+      };
 
       // Check horizontal snapping (only if not already snapped)
       if (!snappedX) {
@@ -238,6 +259,12 @@ class SnappingGuides extends HTMLElement {
         else if (Math.abs(newRight - otherRect.right) < this.snapDistance) {
           newW = otherRect.right - rect.left;
           this.guideX = otherRect.right;
+          snappedX = true;
+        }
+        // Check if resized rect's center aligns with other's center
+        else if (Math.abs((rect.left + newW / 2) - otherRect.centerX) < this.snapDistance) {
+          newW = (otherRect.centerX - rect.left) * 2;
+          this.guideX = otherRect.centerX;
           snappedX = true;
         }
       }
@@ -254,6 +281,12 @@ class SnappingGuides extends HTMLElement {
         else if (Math.abs(newBottom - otherRect.bottom) < this.snapDistance) {
           newH = otherRect.bottom - rect.top;
           this.guideY = otherRect.bottom;
+          snappedY = true;
+        }
+        // Check if resized rect's center aligns with other's center
+        else if (Math.abs((rect.top + newH / 2) - otherRect.centerY) < this.snapDistance) {
+          newH = (otherRect.centerY - rect.top) * 2;
+          this.guideY = otherRect.centerY;
           snappedY = true;
         }
       }
