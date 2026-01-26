@@ -66,6 +66,8 @@ Manages visual guides and snapping behavior for elements on the canvas.
 ### Mobile
 - **Tap**: Select element
 - **Drag**: Move selected element(s)
+- **Double-tap on element**: Open HTML editor modal
+- **Double-tap on empty canvas**: Open component picker
 - **Clone Button**: Duplicate selected element(s)
 - **Delete Button**: Remove selected element(s)
 - **Help Button**: Toggle help text
@@ -207,3 +209,166 @@ HTML Custom Element class `SnappingCanvas`:
 - Conditional UI rendering based on screen size
 - Touch-friendly button sizing (minimum 48px on mobile)
 - Gesture-friendly multi-select on touch devices
+
+## Architecture
+
+### Component System
+
+The application uses a component-based architecture with HTML Custom Elements:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      index.html                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              <snapping-canvas>                       │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │  <snapping-guides> (guide lines manager)    │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐            │    │
+│  │  │  .rect   │ │  .rect   │ │  .rect   │  ...       │    │
+│  │  │ (Button) │ │(Text Box)│ │  (Card)  │            │    │
+│  │  └──────────┘ └──────────┘ └──────────┘            │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │  .alignment-toolbar (multi-select toolbar)  │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │  .mobile-toolbar (Clone/Delete on mobile)   │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │  .component-picker (double-tap on canvas)   │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  .editor-modal-overlay (appended to body)           │    │
+│  │  ┌───────────────────────────────────────────────┐  │    │
+│  │  │  .editor-modal                                 │  │    │
+│  │  │  ├── .editor-modal-header (title + close)     │  │    │
+│  │  │  ├── .editor-modal-body                       │  │    │
+│  │  │  │   ├── .editor-section (HTML textarea)      │  │    │
+│  │  │  │   └── .editor-preview-container            │  │    │
+│  │  │  │       ├── .editor-preview (live preview)   │  │    │
+│  │  │  │       └── .editor-error (error messages)   │  │    │
+│  │  │  └── .editor-modal-footer (Cancel/Save)       │  │    │
+│  │  └───────────────────────────────────────────────┘  │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Component Templates
+
+Pre-defined component templates in `componentTemplates` array:
+
+| Component | Default Size | Description |
+|-----------|--------------|-------------|
+| Button    | 120×80px     | Styled button with `#19f` background |
+| Text Box  | 180×100px    | Gray background text container |
+| Card      | 200×140px    | White card with title, description, shadow |
+
+All components have:
+- `width: 100%; height: 100%` to fill their `.rect` container
+- `pointer-events: none` so parent container handles drag events
+- `box-sizing: border-box` for consistent sizing with padding
+
+### Double-Tap Interactions
+
+```
+Double-tap detection flow:
+┌─────────────────────────────────────────────────────────┐
+│  pointerdown event                                       │
+│  ├── Check time since lastTapTime (< 300ms)             │
+│  ├── Check distance from lastTapX/Y (< 20px)            │
+│  └── Check if same target (lastTapTarget)               │
+│      ├── On empty canvas → showComponentPicker()        │
+│      └── On .rect element → showEditorModal()           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### HTML Editor Modal
+
+The editor modal provides real-time HTML editing:
+
+```
+User Flow:
+1. Double-tap .rect element
+2. Modal opens with current HTML in textarea
+3. User edits HTML
+4. Preview updates in real-time via updatePreview()
+5. validateHTML() checks for parsing errors
+6. Errors displayed in .editor-error div
+7. Save → applyHTMLToRect() updates element
+8. Cancel/Escape/Overlay click → hideEditorModal()
+```
+
+**Key Methods:**
+- `showEditorModal(rect)`: Opens modal with rect's HTML content
+- `hideEditorModal()`: Closes and cleans up modal
+- `validateHTML(html)`: Parses HTML and returns error string or null
+- `updatePreview(html, previewEl, errorEl)`: Updates preview and error state
+- `applyHTMLToRect(html)`: Replaces rect content, preserves resize handle
+- `escapeHTML(str)`: Safely escapes HTML for display in textarea
+
+### State Management
+
+Key state properties in `SnappingCanvas`:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `selectedRects` | Array | Currently selected .rect elements |
+| `dragging` | Element\|null | Element being dragged |
+| `resizing` | Element\|null | Element being resized |
+| `dragOffsets` | Array | Initial positions for multi-drag |
+| `alignmentGuides` | Array | Active alignment guide elements |
+| `lastTapTime` | Number | Timestamp for double-tap detection |
+| `lastTapTarget` | Element\|null | Target element for double-tap |
+| `editingRect` | Element\|null | Rect being edited in modal |
+| `editorModal` | Element\|null | Active modal overlay element |
+| `bordersVisible` | Boolean | Toggle for element borders/handles |
+| `marqueeSelecting` | Boolean | Whether marquee selection is active |
+
+### CSS Class Hierarchy
+
+```
+.rect                    - Draggable element container
+├── (component HTML)     - Button/TextBox/Card with pointer-events:none
+└── .resize-handle       - Bottom-right resize grip
+
+.editor-modal-overlay    - Full-screen dark backdrop
+└── .editor-modal        - White modal container
+    ├── .editor-modal-header
+    │   ├── .editor-modal-title
+    │   └── .editor-modal-close
+    ├── .editor-modal-body
+    │   ├── .editor-section
+    │   │   ├── .editor-section-label
+    │   │   └── .editor-textarea
+    │   └── .editor-preview-container
+    │       ├── .editor-section-label
+    │       ├── .editor-preview
+    │       └── .editor-error
+    └── .editor-modal-footer
+        ├── .editor-btn.editor-btn-cancel
+        └── .editor-btn.editor-btn-save
+
+.component-picker        - Double-tap menu on empty canvas
+└── .component-option    - Individual template buttons
+
+.alignment-toolbar       - Multi-select alignment buttons
+└── .align-btn           - Individual alignment button
+    ├── .align-icon
+    └── .align-label
+
+.mobile-toolbar          - Mobile Clone/Delete buttons
+└── .mobile-btn          - Individual mobile button
+```
+
+### Z-Index Layers
+
+| Layer | Z-Index | Element |
+|-------|---------|---------|
+| Editor Modal | 20000 | `.editor-modal-overlay` |
+| Component Picker | 10003 | `.component-picker` |
+| Toolbars | 10002 | `.alignment-toolbar`, `.mobile-toolbar`, `.marqueeElement` |
+| Alignment Guides | 10001 | Dynamic guide lines |
+| Guide Lines | 999 | `.guide-line` |
+| Dragging Element | 10 | `.rect` while dragging |
+| Normal Elements | 1 | `.rect` at rest |
