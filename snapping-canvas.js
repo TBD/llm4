@@ -29,6 +29,7 @@ class SnappingCanvas extends HTMLElement {
     this.lastTapTarget = null;
     this.editingRect = null;
     this.editorModal = null;
+    this.previewMode = false;
     this.componentTemplates = [
       {
         name: 'Button',
@@ -111,79 +112,135 @@ class SnappingCanvas extends HTMLElement {
         }
       }
 
-      .alignment-toolbar {
+      /* Floating alignment trigger button */
+      .alignment-trigger {
         position: absolute;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
         background: rgba(255, 255, 255, 0.95);
         border: 1px solid #ddd;
-        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10002;
+        transition: background-color 0.2s, transform 0.2s;
+        font-size: 14px;
+        color: #333;
+      }
+
+      .alignment-trigger:hover {
+        background: #19f;
+        color: white;
+        transform: scale(1.1);
+      }
+
+      .alignment-trigger:active {
+        transform: scale(0.95);
+      }
+
+      .alignment-trigger.active {
+        background: #19f;
+        color: white;
+      }
+
+      /* Alignment dropdown menu */
+      .alignment-dropdown {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid #ddd;
+        border-radius: 8px;
         padding: 8px;
         display: none;
+        flex-direction: column;
         gap: 6px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        z-index: 10002;
-        font-family: inherit;
-        font-size: 12px;
-        max-width: calc(100vw - 20px);
-        flex-wrap: wrap;
-        justify-content: center;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        z-index: 10003;
+        min-width: 140px;
+      }
+
+      .alignment-dropdown.visible {
+        display: flex;
+      }
+
+      .align-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .align-group-label {
+        font-size: 10px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 4px 8px 2px;
+        user-select: none;
+      }
+
+      .align-group-buttons {
+        display: flex;
+        gap: 2px;
       }
 
       .align-btn {
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 6px 8px;
+        padding: 8px;
         border: none;
         background: none;
         border-radius: 4px;
         cursor: pointer;
         color: #333;
         transition: background-color 0.2s;
-        min-width: 48px;
-        min-height: 48px;
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 14px;
       }
 
       .align-btn:hover {
-        background: rgba(25, 159, 255, 0.1);
+        background: rgba(25, 159, 255, 0.15);
         color: #19f;
       }
 
       .align-btn:active {
-        background: rgba(25, 159, 255, 0.2);
+        background: rgba(25, 159, 255, 0.25);
       }
 
-      .align-icon {
-        font-size: 16px;
-        margin-bottom: 2px;
-        user-select: none;
+      .align-btn[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        white-space: nowrap;
+        margin-bottom: 4px;
       }
 
-      .align-label {
-        font-size: 10px;
-        text-align: center;
-        line-height: 1;
-        user-select: none;
-      }
+      /* Mobile adjustments */
+      @media (max-width: 768px) {
+        .alignment-trigger {
+          width: 40px;
+          height: 40px;
+          font-size: 18px;
+        }
 
-      /* Mobile responsive alignment toolbar */
-      @media (max-width: 480px) {
-        .alignment-toolbar {
-          padding: 6px;
-          gap: 4px;
-          top: 5px;
+        .alignment-dropdown {
+          min-width: 160px;
         }
 
         .align-btn {
-          min-width: 40px;
-          padding: 4px 6px;
-        }
-
-        .align-label {
-          font-size: 9px;
+          min-width: 44px;
+          min-height: 44px;
+          font-size: 16px;
         }
       }
 
@@ -402,51 +459,52 @@ class SnappingCanvas extends HTMLElement {
     });
     this.appendChild(this.componentPicker);
 
-    // Create toolbar
-    this.toolbar = document.createElement('div');
-    this.toolbar.className = 'alignment-toolbar';
-    this.toolbar.innerHTML = `
-      <button class=\"align-btn\" data-action=\"align-left\">
-        <div class=\"align-icon\">←</div>
-        <div class=\"align-label\">Left</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"align-center\">
-        <div class=\"align-icon\">↔</div>
-        <div class=\"align-label\">Center</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"align-right\">
-        <div class=\"align-icon\">→</div>
-        <div class=\"align-label\">Right</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"align-top\">
-        <div class=\"align-icon\">↑</div>
-        <div class=\"align-label\">Top</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"align-middle\">
-        <div class=\"align-icon\">↕</div>
-        <div class=\"align-label\">Middle</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"align-bottom\">
-        <div class=\"align-icon\">↓</div>
-        <div class=\"align-label\">Bottom</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"distribute-h\">
-        <div class=\"align-icon\">⇄</div>
-        <div class=\"align-label\">Dist H</div>
-      </button>
-      <button class=\"align-btn\" data-action=\"distribute-v\">
-        <div class=\"align-icon\">⇅</div>
-        <div class=\"align-label\">Dist V</div>
-      </button>
+    // Create floating alignment trigger button
+    this.alignmentTrigger = document.createElement('button');
+    this.alignmentTrigger.className = 'alignment-trigger';
+    this.alignmentTrigger.innerHTML = '⊞'; // Grid/align icon
+    this.alignmentTrigger.title = 'Alignment options';
+    this.appendChild(this.alignmentTrigger);
+
+    // Create alignment dropdown menu
+    this.alignmentDropdown = document.createElement('div');
+    this.alignmentDropdown.className = 'alignment-dropdown';
+    this.alignmentDropdown.innerHTML = `
+      <div class="align-group">
+        <div class="align-group-label">Horizontal</div>
+        <div class="align-group-buttons">
+          <button class="align-btn" data-action="align-left" title="Align Left">←</button>
+          <button class="align-btn" data-action="align-center" title="Align Center">↔</button>
+          <button class="align-btn" data-action="align-right" title="Align Right">→</button>
+        </div>
+      </div>
+      <div class="align-group">
+        <div class="align-group-label">Vertical</div>
+        <div class="align-group-buttons">
+          <button class="align-btn" data-action="align-top" title="Align Top">↑</button>
+          <button class="align-btn" data-action="align-middle" title="Align Middle">↕</button>
+          <button class="align-btn" data-action="align-bottom" title="Align Bottom">↓</button>
+        </div>
+      </div>
+      <div class="align-group">
+        <div class="align-group-label">Distribute</div>
+        <div class="align-group-buttons">
+          <button class="align-btn" data-action="distribute-h" title="Distribute Horizontally">⇄</button>
+          <button class="align-btn" data-action="distribute-v" title="Distribute Vertically">⇅</button>
+        </div>
+      </div>
     `;
-    this.appendChild(this.toolbar);
+    this.appendChild(this.alignmentDropdown);
+
+    // For backwards compatibility, keep toolbar reference pointing to trigger
+    this.toolbar = this.alignmentTrigger;
 
 
     // Mobile toolbar (always created, visibility controlled by CSS)
     style.textContent += `
       .mobile-toolbar {
-        position: absolute;
-        bottom: 10px;
+        position: fixed;
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
         left: 50%;
         transform: translateX(-50%);
         display: none;
@@ -478,6 +536,43 @@ class SnappingCanvas extends HTMLElement {
       .mobile-btn:active {
         background: #007acc;
         transform: scale(0.95);
+      }
+
+      .mobile-btn.preview-btn {
+        background: #333;
+      }
+
+      .mobile-btn.preview-btn.active {
+        background: #4a4;
+      }
+
+      /* Preview mode button - always visible */
+      .preview-toggle {
+        position: fixed;
+        top: calc(10px + env(safe-area-inset-top, 0px));
+        right: 10px;
+        padding: 10px 16px;
+        border: none;
+        background: #333;
+        color: white;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        z-index: 10002;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .preview-toggle:active {
+        transform: scale(0.95);
+      }
+
+      .preview-toggle.active {
+        background: #4a4;
       }
 
       /* Show mobile toolbar on small screens */
@@ -517,14 +612,36 @@ class SnappingCanvas extends HTMLElement {
 
     this.appendChild(this.mobileToolbar);
 
+    // Preview toggle button (always visible)
+    this.previewToggle = document.createElement('button');
+    this.previewToggle.className = 'preview-toggle';
+    this.previewToggle.textContent = 'Preview';
+    this.previewToggle.addEventListener('click', () => this.togglePreviewMode());
+    this.appendChild(this.previewToggle);
+
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
     document.addEventListener('pointermove', this.handlePointerMove.bind(this));
     document.addEventListener('pointerup', this.handlePointerUp.bind(this));
     document.addEventListener('keydown', this.handleKeyDown.bind(this));
 
-    // Toolbar button events
-    this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
+    // Alignment trigger button click handler
+    this.alignmentTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleAlignmentDropdown();
+    });
+
+    // Dropdown button events
+    this.alignmentDropdown.addEventListener('click', this.handleToolbarClick.bind(this));
+
+    // Close dropdown when clicking outside
+    document.addEventListener('pointerdown', (e) => {
+      if (!this.alignmentDropdown.contains(e.target) &&
+          !this.alignmentTrigger.contains(e.target) &&
+          this.alignmentDropdown.classList.contains('visible')) {
+        this.hideAlignmentDropdown();
+      }
+    });
 
     // Initialize toolbar visibility
     this.updateToolbarVisibility();
@@ -533,6 +650,16 @@ class SnappingCanvas extends HTMLElement {
   handlePointerDown(e) {
     // Only handle primary pointer (left mouse or touch)
     if (e.button !== 0) return;
+
+    // Ignore clicks on UI elements
+    if (this.alignmentTrigger && this.alignmentTrigger.contains(e.target)) return;
+    if (this.alignmentDropdown && this.alignmentDropdown.contains(e.target)) return;
+    if (this.previewToggle && this.previewToggle.contains(e.target)) return;
+    if (this.mobileToolbar && this.mobileToolbar.contains(e.target)) return;
+    if (this.componentPicker && this.componentPicker.contains(e.target)) return;
+
+    // In preview mode, don't handle canvas interactions
+    if (this.previewMode) return;
 
     // Capture the pointer for dragging outside bounds
     this.setPointerCapture(e.pointerId);
@@ -667,6 +794,9 @@ class SnappingCanvas extends HTMLElement {
       this.guides.setGuideX(null);
       this.guides.setGuideY(null);
 
+      // Hide alignment dropdown while dragging
+      this.hideAlignmentDropdown();
+
       // Cache frequently accessed values
       const canvasBounds = this.getBoundingClientRect();
       let newLeft = e.clientX - this.offsetX;
@@ -704,6 +834,9 @@ class SnappingCanvas extends HTMLElement {
           otherOffset.rect.style.left = (otherOffset.initialLeft + finalDeltaX) + 'px';
           otherOffset.rect.style.top = (otherOffset.initialTop + finalDeltaY) + 'px';
         });
+
+        // Update trigger position while dragging
+        this.positionAlignmentTrigger();
       } else {
         // Single drag
         // First apply existing snapping guides
@@ -720,6 +853,9 @@ class SnappingCanvas extends HTMLElement {
 
         this.dragging.style.left = newLeft + 'px';
         this.dragging.style.top = newTop + 'px';
+
+        // Update trigger position while dragging (single selection)
+        this.positionAlignmentTrigger();
       }
 
       this.showGuides();
@@ -760,6 +896,11 @@ class SnappingCanvas extends HTMLElement {
   }
 
   handleKeyDown(e) {
+    // Don't handle shortcuts when typing in input fields or when editor modal is open
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+    if (isTyping || this.editorModal) return;
+
     // Calculate current mouse position relative to canvas
     const canvasBounds = this.getBoundingClientRect();
     const mouseX = e.clientX - canvasBounds.left;
@@ -873,13 +1014,164 @@ class SnappingCanvas extends HTMLElement {
     this.updateToolbarVisibility();
   }
 
+  togglePreviewMode() {
+    this.previewMode = !this.previewMode;
+
+    if (this.previewMode) {
+      // Enter preview mode
+      this.previewToggle.textContent = 'Editor';
+      this.previewToggle.classList.add('active');
+
+      // Deselect all
+      this.deselectAll();
+
+      // Hide all editing UI
+      if (this.alignmentTrigger) this.alignmentTrigger.style.display = 'none';
+      if (this.mobileToolbar) this.mobileToolbar.style.display = 'none';
+      this.hideAlignmentDropdown();
+      this.guides.style.display = 'none';
+
+      // Update rects for preview mode
+      this.querySelectorAll('.rect').forEach(rect => {
+        rect.style.border = 'none';
+        rect.style.cursor = 'default';
+        rect.style.boxShadow = 'none';
+        const handle = rect.querySelector('.resize-handle');
+        if (handle) handle.style.display = 'none';
+
+        // Enable pointer events on inner content
+        Array.from(rect.children).forEach(child => {
+          if (!child.classList.contains('resize-handle')) {
+            child.style.pointerEvents = 'auto';
+          }
+        });
+      });
+    } else {
+      // Exit preview mode
+      this.previewToggle.textContent = 'Preview';
+      this.previewToggle.classList.remove('active');
+
+      // Show guides
+      this.guides.style.display = '';
+
+      // Update rects for editor mode
+      this.querySelectorAll('.rect').forEach(rect => {
+        rect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+        rect.style.cursor = 'move';
+        const handle = rect.querySelector('.resize-handle');
+        if (handle) handle.style.display = this.bordersVisible ? 'block' : 'none';
+
+        // Disable pointer events on inner content
+        Array.from(rect.children).forEach(child => {
+          if (!child.classList.contains('resize-handle')) {
+            child.style.pointerEvents = 'none';
+          }
+        });
+      });
+
+      // Restore toolbar visibility
+      this.updateToolbarVisibility();
+    }
+  }
+
   updateToolbarVisibility() {
-    if (this.toolbar) {
-      if (this.selectedRects.length > 1 || (this.isMobileViewport() && this.selectedRects.length > 0)) {
-        this.toolbar.style.display = 'flex';
+    const showToolbar = this.selectedRects.length > 1 || (this.isMobileViewport() && this.selectedRects.length > 0);
+
+    if (this.alignmentTrigger) {
+      if (showToolbar) {
+        this.alignmentTrigger.style.display = 'flex';
+        this.positionAlignmentTrigger();
       } else {
-        this.toolbar.style.display = 'none';
+        this.alignmentTrigger.style.display = 'none';
+        this.hideAlignmentDropdown();
       }
+    }
+
+    // Also update mobile toolbar visibility based on selection
+    if (this.mobileToolbar && this.isMobileViewport()) {
+      this.mobileToolbar.style.display = this.selectedRects.length > 0 ? 'flex' : 'none';
+    }
+  }
+
+  positionAlignmentTrigger() {
+    if (!this.alignmentTrigger || this.selectedRects.length === 0) return;
+
+    const bounds = this.getSelectionBounds();
+    if (!bounds) return;
+
+    const canvasBounds = this.getBoundingClientRect();
+    const triggerSize = this.isMobileViewport() ? 40 : 32;
+    const offset = 8; // Distance from selection bounds
+
+    // Position at top-right of selection bounds
+    let left = bounds.maxX + offset;
+    let top = bounds.minY - triggerSize / 2;
+
+    // Keep within viewport bounds
+    const maxLeft = canvasBounds.width - triggerSize - 10;
+    const maxTop = canvasBounds.height - triggerSize - 10;
+
+    // If trigger would go off right edge, position at top-left instead
+    if (left > maxLeft) {
+      left = bounds.minX - triggerSize - offset;
+      // If still off-screen, position inside the selection
+      if (left < 10) {
+        left = Math.min(bounds.maxX - triggerSize - offset, maxLeft);
+      }
+    }
+
+    // Clamp vertical position
+    top = Math.max(10, Math.min(top, maxTop));
+
+    this.alignmentTrigger.style.left = left + 'px';
+    this.alignmentTrigger.style.top = top + 'px';
+  }
+
+  toggleAlignmentDropdown() {
+    if (this.alignmentDropdown.classList.contains('visible')) {
+      this.hideAlignmentDropdown();
+    } else {
+      this.showAlignmentDropdown();
+    }
+  }
+
+  showAlignmentDropdown() {
+    if (!this.alignmentDropdown || !this.alignmentTrigger) return;
+
+    this.alignmentDropdown.classList.add('visible');
+    this.alignmentTrigger.classList.add('active');
+
+    // Position dropdown below the trigger
+    const triggerRect = this.alignmentTrigger.getBoundingClientRect();
+    const canvasRect = this.getBoundingClientRect();
+    const dropdownWidth = 160; // Approximate width
+    const dropdownHeight = 180; // Approximate height
+
+    let left = parseFloat(this.alignmentTrigger.style.left);
+    let top = parseFloat(this.alignmentTrigger.style.top) + (this.isMobileViewport() ? 48 : 40);
+
+    // Keep dropdown within viewport
+    if (left + dropdownWidth > canvasRect.width - 10) {
+      left = canvasRect.width - dropdownWidth - 10;
+    }
+    if (left < 10) {
+      left = 10;
+    }
+    if (top + dropdownHeight > canvasRect.height - 10) {
+      // Position above the trigger instead
+      top = parseFloat(this.alignmentTrigger.style.top) - dropdownHeight - 8;
+    }
+
+    this.alignmentDropdown.style.left = left + 'px';
+    this.alignmentDropdown.style.top = top + 'px';
+  }
+
+  hideAlignmentDropdown() {
+    if (this.alignmentDropdown) {
+      this.alignmentDropdown.classList.remove('visible');
+    }
+    if (this.alignmentTrigger) {
+      this.alignmentTrigger.classList.remove('active');
     }
   }
 
@@ -1235,6 +1527,10 @@ class SnappingCanvas extends HTMLElement {
         this.distributeSelectionVertically();
         break;
     }
+
+    // Close dropdown and reposition trigger after action
+    this.hideAlignmentDropdown();
+    this.positionAlignmentTrigger();
   }
 
   duplicateSelection() {
@@ -1250,6 +1546,15 @@ class SnappingCanvas extends HTMLElement {
       newRect.style.backgroundColor = selectedRect.style.backgroundColor;
       newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
 
+      // Copy inner content (excluding resize handle)
+      Array.from(selectedRect.children).forEach(child => {
+        if (!child.classList.contains('resize-handle')) {
+          const clone = child.cloneNode(true);
+          clone.style.pointerEvents = 'none';
+          newRect.appendChild(clone);
+        }
+      });
+
       const handle = document.createElement('div');
       handle.className = 'resize-handle';
       if (!this.bordersVisible) handle.style.display = 'none';
@@ -1258,11 +1563,12 @@ class SnappingCanvas extends HTMLElement {
       newRects.push(newRect);
     });
 
-    // Position new rectangles at the same positions as originals
+    // Position new rectangles offset from originals so they're visible
+    const offset = 20; // Offset in pixels
     this.selectedRects.forEach((originalRect, index) => {
       const newRect = newRects[index];
-      const left = parseFloat(originalRect.style.left);
-      const top = parseFloat(originalRect.style.top);
+      const left = parseFloat(originalRect.style.left) + offset;
+      const top = parseFloat(originalRect.style.top) + offset;
       newRect.style.left = left + 'px';
       newRect.style.top = top + 'px';
     });
@@ -1280,6 +1586,15 @@ class SnappingCanvas extends HTMLElement {
     newRect.style.height = rect.offsetHeight + 'px';
     newRect.style.backgroundColor = rect.style.backgroundColor;
     newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+
+    // Copy inner content (excluding resize handle)
+    Array.from(rect.children).forEach(child => {
+      if (!child.classList.contains('resize-handle')) {
+        const clone = child.cloneNode(true);
+        clone.style.pointerEvents = 'none';
+        newRect.appendChild(clone);
+      }
+    });
 
     const handle = document.createElement('div');
     handle.className = 'resize-handle';
@@ -1506,30 +1821,38 @@ class SnappingCanvas extends HTMLElement {
   applyHTMLToRect(html) {
     if (!this.editingRect) return;
 
-    // Remove existing content (except resize handle)
-    const children = Array.from(this.editingRect.children);
-    children.forEach(child => {
-      if (!child.classList.contains('resize-handle')) {
-        child.remove();
-      }
-    });
+    // Store rect reference and properties before modifying
+    const rect = this.editingRect;
+
+    // Get or create resize handle
+    let resizeHandle = rect.querySelector('.resize-handle');
+    if (resizeHandle) {
+      resizeHandle.remove(); // Temporarily remove to re-add at the end
+    }
+
+    // Remove all existing content
+    rect.innerHTML = '';
 
     // Parse and add new content
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const newElements = Array.from(doc.body.children);
+    if (html.trim()) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newElements = Array.from(doc.body.children);
 
-    // Insert before resize handle
-    const resizeHandle = this.editingRect.querySelector('.resize-handle');
-    newElements.forEach(el => {
-      // Add pointer-events: none so dragging still works
-      el.style.pointerEvents = 'none';
-      if (resizeHandle) {
-        this.editingRect.insertBefore(el, resizeHandle);
-      } else {
-        this.editingRect.appendChild(el);
-      }
-    });
+      newElements.forEach(el => {
+        // Add pointer-events: none so dragging still works
+        el.style.pointerEvents = 'none';
+        rect.appendChild(el);
+      });
+    }
+
+    // Re-add resize handle at the end
+    if (!resizeHandle) {
+      resizeHandle = document.createElement('div');
+      resizeHandle.className = 'resize-handle';
+    }
+    resizeHandle.style.display = this.bordersVisible ? 'block' : 'none';
+    rect.appendChild(resizeHandle);
   }
 }
 
