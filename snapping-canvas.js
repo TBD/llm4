@@ -1,4 +1,6 @@
 class SnappingCanvas extends HTMLElement {
+  static STORAGE_KEY = 'snapping-canvas-state';
+
   constructor() {
     super();
     this.guides = null;
@@ -645,6 +647,9 @@ class SnappingCanvas extends HTMLElement {
 
     // Initialize toolbar visibility
     this.updateToolbarVisibility();
+
+    // Load saved state from localStorage
+    this.loadFromLocalStorage();
   }
 
   handlePointerDown(e) {
@@ -890,6 +895,9 @@ class SnappingCanvas extends HTMLElement {
   }
 
   handlePointerUp() {
+    const wasDragging = this.dragging;
+    const wasResizing = this.resizing;
+
     if (this.marqueeSelecting) {
       this.marqueeSelecting = false;
       this.removeMarquee();
@@ -907,6 +915,11 @@ class SnappingCanvas extends HTMLElement {
     this.dragging = null;
     this.resizing = null;
     this.dragOffsets = [];
+
+    // Save after drag or resize completes
+    if (wasDragging || wasResizing) {
+      this.saveToLocalStorage();
+    }
   }
 
   handleKeyDown(e) {
@@ -938,10 +951,13 @@ class SnappingCanvas extends HTMLElement {
       }
     } else if (e.key === 'h' || e.key === 'H') {
       this.guides.addHorizontalGuide(mouseY);
+      this.saveToLocalStorage();
     } else if (e.key === 'v' || e.key === 'V') {
       this.guides.addVerticalGuide(mouseX);
+      this.saveToLocalStorage();
     } else if (e.key === 'r' || e.key === 'R') {
       this.guides.removeAllFixedGuides();
+      this.saveToLocalStorage();
     } else if (e.key === 'b' || e.key === 'B') {
       this.bordersVisible = !this.bordersVisible;
       const borderStyle = this.bordersVisible ? '2px solid #19f' : 'none';
@@ -1545,6 +1561,9 @@ class SnappingCanvas extends HTMLElement {
     // Close dropdown and reposition trigger after action
     this.hideAlignmentDropdown();
     this.positionAlignmentTrigger();
+
+    // Save after alignment/distribution
+    this.saveToLocalStorage();
   }
 
   duplicateSelection() {
@@ -1591,6 +1610,9 @@ class SnappingCanvas extends HTMLElement {
     this.selectedRects = newRects;
     this.updateSelectionVisuals();
     this.updateToolbarVisibility();
+
+    // Save after duplication
+    this.saveToLocalStorage();
   }
 
   duplicateRect(rect) {
@@ -1633,6 +1655,9 @@ class SnappingCanvas extends HTMLElement {
     this.selectedRects = [];
     this.clearGuides();
     this.updateToolbarVisibility();
+
+    // Save after deletion
+    this.saveToLocalStorage();
   }
 
   showComponentPicker(x, y) {
@@ -1684,6 +1709,9 @@ class SnappingCanvas extends HTMLElement {
     // Select the new component
     this.deselectAll();
     this.selectRect(newRect);
+
+    // Save after adding component
+    this.saveToLocalStorage();
   }
 
   // HTML Editor Modal Methods
@@ -1867,6 +1895,104 @@ class SnappingCanvas extends HTMLElement {
     }
     resizeHandle.style.display = this.bordersVisible ? 'block' : 'none';
     rect.appendChild(resizeHandle);
+
+    // Save after editing HTML
+    this.saveToLocalStorage();
+  }
+
+  // Local Storage Methods
+  serializeState() {
+    const rects = [];
+    this.querySelectorAll('.rect').forEach(rect => {
+      // Get HTML content (exclude resize handle)
+      const contentElements = Array.from(rect.children).filter(
+        child => !child.classList.contains('resize-handle')
+      );
+      const html = contentElements.map(el => el.outerHTML).join('');
+
+      rects.push({
+        left: parseFloat(rect.style.left) || 0,
+        top: parseFloat(rect.style.top) || 0,
+        width: rect.offsetWidth,
+        height: rect.offsetHeight,
+        html: html
+      });
+    });
+
+    // Also save fixed guides
+    const fixedHorizontals = this.guides ? this.guides.getFixedHorizontals() : [];
+    const fixedVerticals = this.guides ? this.guides.getFixedVerticals() : [];
+
+    return {
+      version: 1,
+      rects,
+      fixedHorizontals,
+      fixedVerticals
+    };
+  }
+
+  saveToLocalStorage() {
+    try {
+      const state = this.serializeState();
+      localStorage.setItem(SnappingCanvas.STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save to localStorage:', e);
+    }
+  }
+
+  loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem(SnappingCanvas.STORAGE_KEY);
+      if (!saved) return false;
+
+      const state = JSON.parse(saved);
+      if (!state || !state.rects) return false;
+
+      // Clear existing rects (but keep UI elements)
+      this.querySelectorAll('.rect').forEach(rect => rect.remove());
+
+      // Restore rects
+      state.rects.forEach(rectData => {
+        const newRect = document.createElement('div');
+        newRect.className = 'rect';
+        newRect.style.left = rectData.left + 'px';
+        newRect.style.top = rectData.top + 'px';
+        newRect.style.width = rectData.width + 'px';
+        newRect.style.height = rectData.height + 'px';
+        newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+
+        // Restore HTML content
+        if (rectData.html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(rectData.html, 'text/html');
+          Array.from(doc.body.children).forEach(el => {
+            el.style.pointerEvents = 'none';
+            newRect.appendChild(el);
+          });
+        }
+
+        // Add resize handle
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle';
+        if (!this.bordersVisible) handle.style.display = 'none';
+        newRect.appendChild(handle);
+
+        this.appendChild(newRect);
+      });
+
+      // Restore fixed guides
+      if (this.guides && state.fixedHorizontals) {
+        state.fixedHorizontals.forEach(y => this.guides.addHorizontalGuide(y));
+      }
+      if (this.guides && state.fixedVerticals) {
+        state.fixedVerticals.forEach(x => this.guides.addVerticalGuide(x));
+      }
+
+      return true;
+    } catch (e) {
+      console.warn('Failed to load from localStorage:', e);
+      return false;
+    }
   }
 }
 
