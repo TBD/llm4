@@ -674,30 +674,44 @@ class SnappingCanvas extends HTMLElement {
 
       if (this.selectedRects.length > 1 && this.dragOffsets.length > 0) {
         // Multi-drag
-        // Calculate new position for primary rectangle
+        // Calculate initial bounding box from stored dragOffsets (not current positions)
+        let initMinX = Infinity, initMinY = Infinity, initMaxX = -Infinity, initMaxY = -Infinity;
+        this.dragOffsets.forEach(offset => {
+          const right = offset.initialLeft + offset.rect.offsetWidth;
+          const bottom = offset.initialTop + offset.rect.offsetHeight;
+          initMinX = Math.min(initMinX, offset.initialLeft);
+          initMinY = Math.min(initMinY, offset.initialTop);
+          initMaxX = Math.max(initMaxX, right);
+          initMaxY = Math.max(initMaxY, bottom);
+        });
+        const groupWidth = initMaxX - initMinX;
+        const groupHeight = initMaxY - initMinY;
+
+        // Calculate the delta from the primary rect's initial position
         const primaryOffset = this.dragOffsets.find(offset => offset.rect === this.dragging);
         if (!primaryOffset) return;
+        const deltaX = newLeft - primaryOffset.initialLeft;
+        const deltaY = newTop - primaryOffset.initialTop;
 
-        // Get bounding box of all selected rectangles
-        const bounds = this.getSelectionBounds();
-        const groupWidth = bounds.width;
-        const groupHeight = bounds.height;
+        // Calculate the group bounding box's new position
+        let groupLeft = initMinX + deltaX;
+        let groupTop = initMinY + deltaY;
 
         // First apply existing snapping guides using the group's bounding box
-        const snapResult = this.guides.snapDrag(newLeft, newTop, groupWidth, groupHeight, this.otherRects);
-        newLeft = snapResult.left;
-        newTop = snapResult.top;
+        const snapResult = this.guides.snapDrag(groupLeft, groupTop, groupWidth, groupHeight, this.otherRects);
+        groupLeft = snapResult.left;
+        groupTop = snapResult.top;
 
         // Then check for alignment guides and potentially snap using group's bounding box
-        const alignmentResult = this.checkAlignmentGuides(this.dragging, newLeft, newTop, groupWidth, groupHeight);
+        const alignmentResult = this.checkAlignmentGuides(this.dragging, groupLeft, groupTop, groupWidth, groupHeight);
         if (alignmentResult.aligned) {
-          newLeft = alignmentResult.left;
-          newTop = alignmentResult.top;
+          groupLeft = alignmentResult.left;
+          groupTop = alignmentResult.top;
         }
 
-        // Adjust delta based on final position
-        const finalDeltaX = newLeft - primaryOffset.initialLeft;
-        const finalDeltaY = newTop - primaryOffset.initialTop;
+        // Calculate final delta based on group's snapped position vs initial position
+        const finalDeltaX = groupLeft - initMinX;
+        const finalDeltaY = groupTop - initMinY;
 
         // Apply final delta to all rectangles
         this.dragOffsets.forEach(otherOffset => {
@@ -805,8 +819,8 @@ class SnappingCanvas extends HTMLElement {
 
   updateOtherRects() {
     const current = this.dragging || this.resizing;
-    // When dragging multiple selected rectangles, exclude all selected rectangles from snapping
-    const excludeRects = this.selectedRects.length > 1 ? this.selectedRects : [current];
+    // Always exclude all selected rectangles from snapping (selected rects should behave like new rects)
+    const excludeRects = this.selectedRects.length > 0 ? this.selectedRects : [current];
     const excludeSet = new Set(excludeRects);
     
     // Optimize: Use a more efficient filtering approach with Set lookup
