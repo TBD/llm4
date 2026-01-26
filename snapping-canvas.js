@@ -26,22 +26,25 @@ class SnappingCanvas extends HTMLElement {
     this.lastTapTime = 0;
     this.lastTapX = 0;
     this.lastTapY = 0;
+    this.lastTapTarget = null;
+    this.editingRect = null;
+    this.editorModal = null;
     this.componentTemplates = [
       {
         name: 'Button',
-        html: '<button style="padding: 10px 20px; background: #19f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Click me</button>',
+        html: '<button style="width: 100%; height: 100%; background: #19f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; pointer-events: none;">Click me</button>',
         width: 120,
         height: 80
       },
       {
         name: 'Text Box',
-        html: '<div style="padding: 15px; background: #f5f5f5; border-radius: 4px; font-size: 14px; color: #333;">Text content here</div>',
+        html: '<div style="width: 100%; height: 100%; box-sizing: border-box; padding: 15px; background: #f5f5f5; border-radius: 4px; font-size: 14px; color: #333; pointer-events: none;">Text content here</div>',
         width: 180,
         height: 100
       },
       {
         name: 'Card',
-        html: '<div style="padding: 20px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h3 style="margin: 0 0 10px 0; font-size: 16px;">Card Title</h3><p style="margin: 0; font-size: 13px; color: #666;">Card content goes here</p></div>',
+        html: '<div style="width: 100%; height: 100%; box-sizing: border-box; padding: 20px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); pointer-events: none;"><h3 style="margin: 0 0 10px 0; font-size: 16px;">Card Title</h3><p style="margin: 0; font-size: 13px; color: #666;">Card content goes here</p></div>',
         width: 200,
         height: 140
       }
@@ -181,6 +184,202 @@ class SnappingCanvas extends HTMLElement {
 
         .align-label {
           font-size: 9px;
+        }
+      }
+
+      /* HTML Editor Modal */
+      .editor-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .editor-modal {
+        background: white;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 800px;
+        height: 90vh;
+        max-height: 700px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .editor-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        background: #f8f8f8;
+      }
+
+      .editor-modal-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+      }
+
+      .editor-modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .editor-modal-close:hover {
+        background: #e0e0e0;
+        color: #333;
+      }
+
+      .editor-modal-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .editor-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .editor-section:last-child {
+        border-bottom: none;
+      }
+
+      .editor-section-label {
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #666;
+        background: #f5f5f5;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .editor-textarea {
+        flex: 1;
+        width: 100%;
+        border: none;
+        padding: 16px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: none;
+        outline: none;
+        box-sizing: border-box;
+      }
+
+      .editor-textarea:focus {
+        background: #fafafa;
+      }
+
+      .editor-preview-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .editor-preview {
+        flex: 1;
+        padding: 16px;
+        overflow: auto;
+        background: #fff;
+        border: 2px dashed #e0e0e0;
+        margin: 0 16px 16px 16px;
+        border-radius: 8px;
+      }
+
+      .editor-error {
+        padding: 12px 16px;
+        background: #fee;
+        color: #c00;
+        font-size: 13px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        border-top: 1px solid #fcc;
+        display: none;
+      }
+
+      .editor-error.visible {
+        display: block;
+      }
+
+      .editor-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 16px 20px;
+        border-top: 1px solid #e0e0e0;
+        background: #f8f8f8;
+      }
+
+      .editor-btn {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        min-height: 44px;
+      }
+
+      .editor-btn-cancel {
+        background: white;
+        border: 1px solid #ddd;
+        color: #333;
+      }
+
+      .editor-btn-cancel:hover {
+        background: #f5f5f5;
+      }
+
+      .editor-btn-save {
+        background: #19f;
+        border: none;
+        color: white;
+      }
+
+      .editor-btn-save:hover {
+        background: #007acc;
+      }
+
+      @media (max-width: 768px) {
+        .editor-modal-overlay {
+          padding: 0;
+        }
+
+        .editor-modal {
+          height: 100%;
+          max-height: none;
+          border-radius: 0;
+        }
+
+        .editor-textarea {
+          font-size: 16px; /* Prevent zoom on iOS */
         }
       }
     `;
@@ -367,8 +566,28 @@ class SnappingCanvas extends HTMLElement {
       this.startH = rect.offsetHeight;
       this.updateOtherRects();
     } else if (e.target.classList.contains('rect')) {
-      // Dragging or selecting
+      // Check for double tap on rect element
       const rect = e.target;
+      const currentTime = Date.now();
+      const timeDiff = currentTime - this.lastTapTime;
+      const distX = Math.abs(e.clientX - this.lastTapX);
+      const distY = Math.abs(e.clientY - this.lastTapY);
+
+      if (timeDiff < 300 && distX < 20 && distY < 20 && this.lastTapTarget === rect) {
+        // Double tap on rect detected - open editor
+        e.preventDefault();
+        this.showEditorModal(rect);
+        this.lastTapTime = 0;
+        this.lastTapTarget = null;
+        return;
+      }
+
+      this.lastTapTime = currentTime;
+      this.lastTapX = e.clientX;
+      this.lastTapY = e.clientY;
+      this.lastTapTarget = rect;
+
+      // Dragging or selecting
       if (e.shiftKey || e.ctrlKey || e.metaKey) {
         // Multi-select: toggle selection
         if (this.selectedRects.includes(rect)) {
@@ -1138,7 +1357,180 @@ class SnappingCanvas extends HTMLElement {
     this.selectRect(newRect);
   }
 
+  // HTML Editor Modal Methods
+  showEditorModal(rect) {
+    this.editingRect = rect;
 
+    // Get current HTML content (exclude the resize handle)
+    const contentElements = Array.from(rect.children).filter(
+      child => !child.classList.contains('resize-handle')
+    );
+    const currentHTML = contentElements.map(el => el.outerHTML).join('\n');
+
+    // Create modal overlay
+    this.editorModal = document.createElement('div');
+    this.editorModal.className = 'editor-modal-overlay';
+
+    this.editorModal.innerHTML = `
+      <div class="editor-modal">
+        <div class="editor-modal-header">
+          <h3 class="editor-modal-title">Edit Component HTML</h3>
+          <button class="editor-modal-close">&times;</button>
+        </div>
+        <div class="editor-modal-body">
+          <div class="editor-section">
+            <div class="editor-section-label">HTML Code</div>
+            <textarea class="editor-textarea" spellcheck="false">${this.escapeHTML(currentHTML)}</textarea>
+          </div>
+          <div class="editor-section editor-preview-container">
+            <div class="editor-section-label">Preview</div>
+            <div class="editor-preview"></div>
+            <div class="editor-error"></div>
+          </div>
+        </div>
+        <div class="editor-modal-footer">
+          <button class="editor-btn editor-btn-cancel">Cancel</button>
+          <button class="editor-btn editor-btn-save">Save</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(this.editorModal);
+
+    // Get references to elements
+    const textarea = this.editorModal.querySelector('.editor-textarea');
+    const preview = this.editorModal.querySelector('.editor-preview');
+    const errorDiv = this.editorModal.querySelector('.editor-error');
+    const closeBtn = this.editorModal.querySelector('.editor-modal-close');
+    const cancelBtn = this.editorModal.querySelector('.editor-btn-cancel');
+    const saveBtn = this.editorModal.querySelector('.editor-btn-save');
+
+    // Initial preview
+    this.updatePreview(textarea.value, preview, errorDiv);
+
+    // Real-time preview update
+    textarea.addEventListener('input', () => {
+      this.updatePreview(textarea.value, preview, errorDiv);
+    });
+
+    // Close handlers
+    closeBtn.addEventListener('click', () => this.hideEditorModal());
+    cancelBtn.addEventListener('click', () => this.hideEditorModal());
+
+    // Close on overlay click
+    this.editorModal.addEventListener('click', (e) => {
+      if (e.target === this.editorModal) {
+        this.hideEditorModal();
+      }
+    });
+
+    // Save handler
+    saveBtn.addEventListener('click', () => {
+      const html = textarea.value;
+      const error = this.validateHTML(html);
+      if (!error) {
+        this.applyHTMLToRect(html);
+        this.hideEditorModal();
+      } else {
+        errorDiv.textContent = error;
+        errorDiv.classList.add('visible');
+      }
+    });
+
+    // Escape key to close
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        this.hideEditorModal();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // Focus textarea
+    setTimeout(() => textarea.focus(), 100);
+  }
+
+  hideEditorModal() {
+    if (this.editorModal) {
+      this.editorModal.remove();
+      this.editorModal = null;
+    }
+    this.editingRect = null;
+  }
+
+  escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  validateHTML(html) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+
+      // Check for parsing errors
+      const parseError = doc.querySelector('parsererror');
+      if (parseError) {
+        return 'HTML parsing error: ' + parseError.textContent;
+      }
+
+      // Check for unclosed tags by comparing structure
+      const body = doc.body;
+      if (body.innerHTML.trim() === '' && html.trim() !== '') {
+        // DOMParser couldn't parse anything meaningful
+        return 'Invalid HTML structure';
+      }
+
+      return null; // No error
+    } catch (e) {
+      return 'Error: ' + e.message;
+    }
+  }
+
+  updatePreview(html, previewEl, errorEl) {
+    const error = this.validateHTML(html);
+
+    if (error) {
+      errorEl.textContent = error;
+      errorEl.classList.add('visible');
+      // Still show whatever can be rendered
+      previewEl.innerHTML = html;
+    } else {
+      errorEl.classList.remove('visible');
+      errorEl.textContent = '';
+      previewEl.innerHTML = html;
+    }
+  }
+
+  applyHTMLToRect(html) {
+    if (!this.editingRect) return;
+
+    // Remove existing content (except resize handle)
+    const children = Array.from(this.editingRect.children);
+    children.forEach(child => {
+      if (!child.classList.contains('resize-handle')) {
+        child.remove();
+      }
+    });
+
+    // Parse and add new content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const newElements = Array.from(doc.body.children);
+
+    // Insert before resize handle
+    const resizeHandle = this.editingRect.querySelector('.resize-handle');
+    newElements.forEach(el => {
+      // Add pointer-events: none so dragging still works
+      el.style.pointerEvents = 'none';
+      if (resizeHandle) {
+        this.editingRect.insertBefore(el, resizeHandle);
+      } else {
+        this.editingRect.appendChild(el);
+      }
+    });
+  }
 }
 
 customElements.define('snapping-canvas', SnappingCanvas);
