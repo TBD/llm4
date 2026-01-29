@@ -29,6 +29,7 @@ class SnappingCanvas extends HTMLElement {
     this.lastTapX = 0;
     this.lastTapY = 0;
     this.lastTapTarget = null;
+    this.tapCount = 0; // Track consecutive taps for triple-tap detection
     this.editingRect = null;
     this.editorModal = null;
     this.previewMode = false;
@@ -472,7 +473,7 @@ class SnappingCanvas extends HTMLElement {
     this.alignmentDropdown = document.createElement('div');
     this.alignmentDropdown.className = 'alignment-dropdown';
     this.alignmentDropdown.innerHTML = `
-      <div class="align-group">
+      <div class="align-group align-group-horizontal">
         <div class="align-group-label">Horizontal</div>
         <div class="align-group-buttons">
           <button class="align-btn" data-action="align-left" title="Align Left">←</button>
@@ -480,7 +481,7 @@ class SnappingCanvas extends HTMLElement {
           <button class="align-btn" data-action="align-right" title="Align Right">→</button>
         </div>
       </div>
-      <div class="align-group">
+      <div class="align-group align-group-vertical">
         <div class="align-group-label">Vertical</div>
         <div class="align-group-buttons">
           <button class="align-btn" data-action="align-top" title="Align Top">↑</button>
@@ -488,11 +489,19 @@ class SnappingCanvas extends HTMLElement {
           <button class="align-btn" data-action="align-bottom" title="Align Bottom">↓</button>
         </div>
       </div>
-      <div class="align-group">
+      <div class="align-group align-group-distribute">
         <div class="align-group-label">Distribute</div>
         <div class="align-group-buttons">
           <button class="align-btn" data-action="distribute-h" title="Distribute Horizontally">⇄</button>
           <button class="align-btn" data-action="distribute-v" title="Distribute Vertically">⇅</button>
+        </div>
+      </div>
+      <div class="align-group align-group-actions">
+        <div class="align-group-label">Actions</div>
+        <div class="align-group-buttons">
+          <button class="align-btn" data-action="clone" title="Clone">⧉</button>
+          <button class="align-btn" data-action="delete" title="Delete">✕</button>
+          <button class="align-btn" data-action="preview" title="Preview">👁</button>
         </div>
       </div>
     `;
@@ -502,124 +511,6 @@ class SnappingCanvas extends HTMLElement {
     this.toolbar = this.alignmentTrigger;
 
 
-    // Mobile toolbar (always created, visibility controlled by CSS)
-    style.textContent += `
-      .mobile-toolbar {
-        position: fixed;
-        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-        left: 50%;
-        transform: translateX(-50%);
-        display: none;
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.95);
-        border: 1px solid #ddd;
-        border-radius: 12px;
-        padding: 8px 12px;
-        z-index: 10002;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-      }
-
-      .mobile-btn {
-        padding: 12px 16px;
-        border: none;
-        background: #19f;
-        color: white;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        min-width: 48px;
-        min-height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .mobile-btn:active {
-        background: #007acc;
-        transform: scale(0.95);
-      }
-
-      .mobile-btn.preview-btn {
-        background: #333;
-      }
-
-      .mobile-btn.preview-btn.active {
-        background: #4a4;
-      }
-
-      /* Preview mode button - always visible */
-      .preview-toggle {
-        position: fixed;
-        top: calc(10px + env(safe-area-inset-top, 0px));
-        right: 10px;
-        padding: 10px 16px;
-        border: none;
-        background: #333;
-        color: white;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        z-index: 10002;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        min-height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .preview-toggle:active {
-        transform: scale(0.95);
-      }
-
-      .preview-toggle.active {
-        background: #4a4;
-      }
-
-      /* Show mobile toolbar on small screens */
-      @media (max-width: 768px) {
-        .mobile-toolbar {
-          display: flex;
-        }
-      }
-
-      @media (max-width: 480px) {
-        .mobile-toolbar {
-          padding: 6px 10px;
-          gap: 6px;
-        }
-
-        .mobile-btn {
-          padding: 10px 14px;
-          font-size: 13px;
-        }
-      }
-    `;
-
-    this.mobileToolbar = document.createElement('div');
-    this.mobileToolbar.className = 'mobile-toolbar';
-
-    const cloneBtn = document.createElement('button');
-    cloneBtn.className = 'mobile-btn';
-    cloneBtn.textContent = 'Clone';
-    cloneBtn.addEventListener('click', () => this.duplicateSelection());
-    this.mobileToolbar.appendChild(cloneBtn);
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'mobile-btn';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.addEventListener('click', () => this.eraseSelection());
-    this.mobileToolbar.appendChild(deleteBtn);
-
-    this.appendChild(this.mobileToolbar);
-
-    // Preview toggle button (always visible)
-    this.previewToggle = document.createElement('button');
-    this.previewToggle.className = 'preview-toggle';
-    this.previewToggle.textContent = 'Preview';
-    this.previewToggle.addEventListener('click', () => this.togglePreviewMode());
-    this.appendChild(this.previewToggle);
 
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
@@ -659,12 +550,32 @@ class SnappingCanvas extends HTMLElement {
     // Ignore clicks on UI elements
     if (this.alignmentTrigger && this.alignmentTrigger.contains(e.target)) return;
     if (this.alignmentDropdown && this.alignmentDropdown.contains(e.target)) return;
-    if (this.previewToggle && this.previewToggle.contains(e.target)) return;
-    if (this.mobileToolbar && this.mobileToolbar.contains(e.target)) return;
     if (this.componentPicker && this.componentPicker.contains(e.target)) return;
 
-    // In preview mode, don't handle canvas interactions
-    if (this.previewMode) return;
+    // In preview mode, check for triple tap to exit
+    if (this.previewMode) {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - this.lastTapTime;
+      const distX = Math.abs(e.clientX - this.lastTapX);
+      const distY = Math.abs(e.clientY - this.lastTapY);
+
+      if (timeDiff < 300 && distX < 30 && distY < 30) {
+        this.tapCount++;
+        if (this.tapCount >= 2) { // Third tap (started at 0, now 2 means 3 taps)
+          e.preventDefault();
+          this.tapCount = 0;
+          this.togglePreviewMode();
+          return;
+        }
+      } else {
+        this.tapCount = 0;
+      }
+
+      this.lastTapTime = currentTime;
+      this.lastTapX = e.clientX;
+      this.lastTapY = e.clientY;
+      return;
+    }
 
     // Capture the pointer for dragging outside bounds
     this.setPointerCapture(e.pointerId);
@@ -970,8 +881,9 @@ class SnappingCanvas extends HTMLElement {
       this.updateSelectionVisuals(); // Update selection visuals too
     } else if (e.key === 'Backspace' || e.key === 'Delete') {
       this.eraseSelection();
+    } else if (e.key === 'p' || e.key === 'P') {
+      this.togglePreviewMode();
     }
-
   }
 
   updateOtherRects() {
@@ -1047,17 +959,20 @@ class SnappingCanvas extends HTMLElement {
   togglePreviewMode() {
     this.previewMode = !this.previewMode;
 
+    // Update preview button icon in dropdown
+    const previewBtn = this.alignmentDropdown?.querySelector('[data-action="preview"]');
+    if (previewBtn) {
+      previewBtn.innerHTML = this.previewMode ? '✎' : '👁';
+      previewBtn.title = this.previewMode ? 'Editor' : 'Preview';
+    }
+
     if (this.previewMode) {
       // Enter preview mode
-      this.previewToggle.textContent = 'Editor';
-      this.previewToggle.classList.add('active');
-
       // Deselect all
       this.deselectAll();
 
       // Hide all editing UI
       if (this.alignmentTrigger) this.alignmentTrigger.style.display = 'none';
-      if (this.mobileToolbar) this.mobileToolbar.style.display = 'none';
       this.hideAlignmentDropdown();
       this.guides.style.display = 'none';
 
@@ -1078,9 +993,6 @@ class SnappingCanvas extends HTMLElement {
       });
     } else {
       // Exit preview mode
-      this.previewToggle.textContent = 'Preview';
-      this.previewToggle.classList.remove('active');
-
       // Show guides
       this.guides.style.display = '';
 
@@ -1105,7 +1017,10 @@ class SnappingCanvas extends HTMLElement {
   }
 
   updateToolbarVisibility() {
-    const showToolbar = this.selectedRects.length > 1 || (this.isMobileViewport() && this.selectedRects.length > 0);
+    // Show toolbar whenever there's at least 1 selection (for clone/delete)
+    const showToolbar = this.selectedRects.length > 0;
+    const showAlignmentOptions = this.selectedRects.length > 1;
+    const showDistributeOptions = this.selectedRects.length >= 3;
 
     if (this.alignmentTrigger) {
       if (showToolbar) {
@@ -1117,9 +1032,15 @@ class SnappingCanvas extends HTMLElement {
       }
     }
 
-    // Also update mobile toolbar visibility based on selection
-    if (this.mobileToolbar && this.isMobileViewport()) {
-      this.mobileToolbar.style.display = this.selectedRects.length > 0 ? 'flex' : 'none';
+    // Update visibility of alignment/distribute groups based on selection count
+    if (this.alignmentDropdown) {
+      const horizontalGroup = this.alignmentDropdown.querySelector('.align-group-horizontal');
+      const verticalGroup = this.alignmentDropdown.querySelector('.align-group-vertical');
+      const distributeGroup = this.alignmentDropdown.querySelector('.align-group-distribute');
+
+      if (horizontalGroup) horizontalGroup.style.display = showAlignmentOptions ? '' : 'none';
+      if (verticalGroup) verticalGroup.style.display = showAlignmentOptions ? '' : 'none';
+      if (distributeGroup) distributeGroup.style.display = showDistributeOptions ? '' : 'none';
     }
   }
 
@@ -1555,6 +1476,15 @@ class SnappingCanvas extends HTMLElement {
         break;
       case 'distribute-v':
         this.distributeSelectionVertically();
+        break;
+      case 'clone':
+        this.duplicateSelection();
+        break;
+      case 'delete':
+        this.eraseSelection();
+        break;
+      case 'preview':
+        this.togglePreviewMode();
         break;
     }
 
