@@ -14,6 +14,10 @@
       position: relative;
       overflow: hidden;
       font-family: sans-serif;
+      /* Disable iOS double-tap-to-zoom and other touch gestures */
+      touch-action: manipulation;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     h1 {
@@ -30,6 +34,8 @@
       background: #fff;
       display: block;
       touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .rect {
@@ -43,6 +49,8 @@
       cursor: move;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
       overflow: hidden;
     }
 
