@@ -7,6 +7,11 @@
 
   <title>guides</title>
   <style>
+    * {
+      /* Prevent iOS double-tap zoom on all elements */
+      touch-action: manipulation;
+    }
+
     html, body {
       margin: 0;
       height: 100%;
@@ -18,6 +23,7 @@
       touch-action: manipulation;
       -webkit-touch-callout: none;
       -webkit-tap-highlight-color: transparent;
+      -webkit-text-size-adjust: 100%;
     }
 
     h1 {

@@ -36,21 +36,45 @@ class SnappingCanvas extends HTMLElement {
     this.componentTemplates = [
       {
         name: 'Button',
+        icon: '▢',
         html: '<button style="width: 100%; height: 100%; background: #19f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; pointer-events: none;">Click me</button>',
         width: 120,
-        height: 80
+        height: 50
       },
       {
-        name: 'Text Box',
+        name: 'Text',
+        icon: 'T',
         html: '<div style="width: 100%; height: 100%; box-sizing: border-box; padding: 15px; background: #f5f5f5; border-radius: 4px; font-size: 14px; color: #333; pointer-events: none;">Text content here</div>',
         width: 180,
-        height: 100
+        height: 60
       },
       {
         name: 'Card',
+        icon: '▭',
         html: '<div style="width: 100%; height: 100%; box-sizing: border-box; padding: 20px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); pointer-events: none;"><h3 style="margin: 0 0 10px 0; font-size: 16px;">Card Title</h3><p style="margin: 0; font-size: 13px; color: #666;">Card content goes here</p></div>',
         width: 200,
         height: 140
+      },
+      {
+        name: 'Input',
+        icon: '⎕',
+        html: '<input type="text" placeholder="Enter text..." style="width: 100%; height: 100%; box-sizing: border-box; padding: 10px 15px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; outline: none; pointer-events: none;">',
+        width: 200,
+        height: 44
+      },
+      {
+        name: 'Image',
+        icon: '🖼',
+        html: '<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #e0e0e0 25%, #f5f5f5 25%, #f5f5f5 50%, #e0e0e0 50%, #e0e0e0 75%, #f5f5f5 75%); background-size: 20px 20px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 14px; border-radius: 4px; pointer-events: none;">Image</div>',
+        width: 150,
+        height: 100
+      },
+      {
+        name: 'Icon Button',
+        icon: '●',
+        html: '<button style="width: 100%; height: 100%; background: #333; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; pointer-events: none;">+</button>',
+        width: 50,
+        height: 50
       }
     ];
   }
@@ -68,6 +92,105 @@ class SnappingCanvas extends HTMLElement {
     // Create and append styles for alignment toolbar and component picker
     const style = document.createElement('style');
     style.textContent = `
+      /* Quick Elements Toolbar */
+      .quick-elements-toolbar {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 10004;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        touch-action: manipulation;
+      }
+
+      .quick-element-btn {
+        width: 44px;
+        height: 44px;
+        border: 1px solid #e0e0e0;
+        background: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: #333;
+        transition: all 0.15s ease;
+        padding: 4px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .quick-element-btn:hover {
+        background: #f0f7ff;
+        border-color: #19f;
+        transform: translateY(-2px);
+      }
+
+      .quick-element-btn:active {
+        transform: scale(0.95);
+        background: #e0f0ff;
+      }
+
+      .quick-element-btn .icon {
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      .quick-element-btn .label {
+        font-size: 8px;
+        margin-top: 2px;
+        color: #666;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 768px) {
+        .quick-elements-toolbar {
+          bottom: 15px;
+          padding: 8px 10px;
+          gap: 6px;
+          border-radius: 10px;
+        }
+
+        .quick-element-btn {
+          width: 48px;
+          height: 48px;
+          border-radius: 10px;
+        }
+
+        .quick-element-btn .icon {
+          font-size: 20px;
+        }
+
+        .quick-element-btn .label {
+          font-size: 9px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .quick-elements-toolbar {
+          bottom: 10px;
+          padding: 6px 8px;
+          gap: 4px;
+        }
+
+        .quick-element-btn {
+          width: 44px;
+          height: 44px;
+        }
+      }
+
       .component-picker {
         position: absolute;
         background: white;
@@ -462,6 +585,31 @@ class SnappingCanvas extends HTMLElement {
     });
     this.appendChild(this.componentPicker);
 
+    // Create quick elements toolbar (floating at bottom)
+    this.quickElementsToolbar = document.createElement('div');
+    this.quickElementsToolbar.className = 'quick-elements-toolbar';
+    this.componentTemplates.forEach((template, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'quick-element-btn';
+      btn.title = template.name;
+      btn.innerHTML = `
+        <span class="icon">${template.icon || '▢'}</span>
+        <span class="label">${template.name}</span>
+      `;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.addComponentAtCenter(index);
+      });
+      // Prevent double-tap zoom on iOS
+      btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        this.addComponentAtCenter(index);
+      }, { passive: false });
+      this.quickElementsToolbar.appendChild(btn);
+    });
+    document.body.appendChild(this.quickElementsToolbar);
+
     // Create floating alignment trigger button
     this.alignmentTrigger = document.createElement('button');
     this.alignmentTrigger.className = 'alignment-trigger';
@@ -511,6 +659,26 @@ class SnappingCanvas extends HTMLElement {
     this.toolbar = this.alignmentTrigger;
 
 
+
+    // Prevent iOS double-tap zoom on the entire canvas
+    this.addEventListener('touchstart', (e) => {
+      // Allow default for input elements
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      // Prevent double-tap zoom by using passive: false
+    }, { passive: true });
+
+    // Prevent double-tap zoom more aggressively on iOS
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        // Only prevent if not on input elements
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+        }
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
 
     // Attach events
     this.addEventListener('pointerdown', this.handlePointerDown.bind(this));
@@ -973,6 +1141,7 @@ class SnappingCanvas extends HTMLElement {
 
       // Hide all editing UI
       if (this.alignmentTrigger) this.alignmentTrigger.style.display = 'none';
+      if (this.quickElementsToolbar) this.quickElementsToolbar.style.display = 'none';
       this.hideAlignmentDropdown();
       this.guides.style.display = 'none';
 
@@ -995,6 +1164,9 @@ class SnappingCanvas extends HTMLElement {
       // Exit preview mode
       // Show guides
       this.guides.style.display = '';
+
+      // Show quick elements toolbar
+      if (this.quickElementsToolbar) this.quickElementsToolbar.style.display = 'flex';
 
       // Update rects for editor mode
       this.querySelectorAll('.rect').forEach(rect => {
@@ -1633,6 +1805,39 @@ class SnappingCanvas extends HTMLElement {
     // Position at the picker location (centered on click point)
     newRect.style.left = (this.pickerX - template.width / 2) + 'px';
     newRect.style.top = (this.pickerY - template.height / 2) + 'px';
+
+    this.appendChild(newRect);
+
+    // Select the new component
+    this.deselectAll();
+    this.selectRect(newRect);
+
+    // Save after adding component
+    this.saveToLocalStorage();
+  }
+
+  addComponentAtCenter(templateIndex) {
+    const template = this.componentTemplates[templateIndex];
+    if (!template) return;
+
+    const newRect = document.createElement('div');
+    newRect.className = 'rect';
+    newRect.style.width = template.width + 'px';
+    newRect.style.height = template.height + 'px';
+    newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
+    newRect.innerHTML = template.html;
+
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    if (!this.bordersVisible) handle.style.display = 'none';
+    newRect.appendChild(handle);
+
+    // Position at canvas center
+    const canvasBounds = this.getBoundingClientRect();
+    const centerX = (canvasBounds.width / 2) - (template.width / 2);
+    const centerY = (canvasBounds.height / 2) - (template.height / 2);
+    newRect.style.left = centerX + 'px';
+    newRect.style.top = centerY + 'px';
 
     this.appendChild(newRect);
 
