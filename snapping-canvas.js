@@ -33,6 +33,7 @@ class SnappingCanvas extends HTMLElement {
     this.editingRect = null;
     this.editorModal = null;
     this.previewMode = false;
+    this.toolbarVisible = false;
     this.componentTemplates = [
       {
         name: 'Button',
@@ -92,23 +93,72 @@ class SnappingCanvas extends HTMLElement {
     // Create and append styles for alignment toolbar and component picker
     const style = document.createElement('style');
     style.textContent = `
+      /* Top drag zone for revealing toolbar */
+      .top-drag-zone {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 20px;
+        z-index: 10005;
+        cursor: ns-resize;
+      }
+
+      .top-drag-zone::after {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 2px;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .top-drag-zone:hover::after,
+      .top-drag-zone.dragging::after {
+        opacity: 1;
+      }
+
       /* Quick Elements Toolbar */
       .quick-elements-toolbar {
         position: fixed;
-        bottom: 20px;
+        top: 0;
         left: 50%;
-        transform: translateX(-50%);
+        transform: translateX(-50%) translateY(-100%);
         display: flex;
         gap: 8px;
         padding: 10px 14px;
+        padding-bottom: 14px;
         background: rgba(255, 255, 255, 0.95);
         border: 1px solid #ddd;
-        border-radius: 12px;
+        border-top: none;
+        border-radius: 0 0 12px 12px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         z-index: 10004;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         touch-action: manipulation;
+        transition: transform 0.3s ease;
+      }
+
+      .quick-elements-toolbar.visible {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .quick-elements-toolbar .drag-handle {
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 2px;
+        cursor: ns-resize;
       }
 
       .quick-element-btn {
@@ -157,10 +207,10 @@ class SnappingCanvas extends HTMLElement {
 
       @media (max-width: 768px) {
         .quick-elements-toolbar {
-          bottom: 15px;
           padding: 8px 10px;
+          padding-bottom: 12px;
           gap: 6px;
-          border-radius: 10px;
+          border-radius: 0 0 10px 10px;
         }
 
         .quick-element-btn {
@@ -180,61 +230,14 @@ class SnappingCanvas extends HTMLElement {
 
       @media (max-width: 480px) {
         .quick-elements-toolbar {
-          bottom: 10px;
           padding: 6px 8px;
+          padding-bottom: 10px;
           gap: 4px;
         }
 
         .quick-element-btn {
           width: 44px;
           height: 44px;
-        }
-      }
-
-      .component-picker {
-        position: absolute;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 10px;
-        display: none;
-        gap: 10px;
-        flex-direction: column;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 10003;
-        min-width: 150px;
-      }
-
-      .component-option {
-        padding: 12px 16px;
-        border: 1px solid #ddd;
-        background: #f9f9f9;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        text-align: center;
-        transition: all 0.2s;
-        user-select: none;
-      }
-
-      .component-option:hover {
-        background: #19f;
-        color: white;
-        border-color: #19f;
-      }
-
-      .component-option:active {
-        transform: scale(0.95);
-      }
-
-      @media (max-width: 768px) {
-        .component-option {
-          padding: 14px 18px;
-          font-size: 15px;
-          min-height: 48px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
         }
       }
 
@@ -568,24 +571,12 @@ class SnappingCanvas extends HTMLElement {
     `;
     this.appendChild(style);
 
-    // Create component picker
-    this.componentPicker = document.createElement('div');
-    this.componentPicker.className = 'component-picker';
-    this.componentTemplates.forEach((template, index) => {
-      const option = document.createElement('div');
-      option.className = 'component-option';
-      option.textContent = template.name;
-      option.dataset.templateIndex = index;
-      option.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.addComponentFromTemplate(index);
-        this.hideComponentPicker();
-      });
-      this.componentPicker.appendChild(option);
-    });
-    this.appendChild(this.componentPicker);
+    // Create top drag zone for revealing toolbar
+    this.topDragZone = document.createElement('div');
+    this.topDragZone.className = 'top-drag-zone';
+    document.body.appendChild(this.topDragZone);
 
-    // Create quick elements toolbar (floating at bottom)
+    // Create quick elements toolbar (slides down from top)
     this.quickElementsToolbar = document.createElement('div');
     this.quickElementsToolbar.className = 'quick-elements-toolbar';
     this.componentTemplates.forEach((template, index) => {
@@ -600,15 +591,26 @@ class SnappingCanvas extends HTMLElement {
         e.stopPropagation();
         e.preventDefault();
         this.addComponentAtCenter(index);
+        this.hideQuickToolbar();
       });
       // Prevent double-tap zoom on iOS
       btn.addEventListener('touchend', (e) => {
         e.preventDefault();
         this.addComponentAtCenter(index);
+        this.hideQuickToolbar();
       }, { passive: false });
       this.quickElementsToolbar.appendChild(btn);
     });
+
+    // Add drag handle to toolbar
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'drag-handle';
+    this.quickElementsToolbar.appendChild(dragHandle);
+
     document.body.appendChild(this.quickElementsToolbar);
+
+    // Setup drag-from-top interaction
+    this.setupTopDragInteraction();
 
     // Create floating alignment trigger button
     this.alignmentTrigger = document.createElement('button');
@@ -718,7 +720,8 @@ class SnappingCanvas extends HTMLElement {
     // Ignore clicks on UI elements
     if (this.alignmentTrigger && this.alignmentTrigger.contains(e.target)) return;
     if (this.alignmentDropdown && this.alignmentDropdown.contains(e.target)) return;
-    if (this.componentPicker && this.componentPicker.contains(e.target)) return;
+    if (this.quickElementsToolbar && this.quickElementsToolbar.contains(e.target)) return;
+    if (this.topDragZone && this.topDragZone.contains(e.target)) return;
 
     // In preview mode, check for triple tap to exit
     if (this.previewMode) {
@@ -748,24 +751,6 @@ class SnappingCanvas extends HTMLElement {
     // Capture the pointer for dragging outside bounds
     this.setPointerCapture(e.pointerId);
 
-    // Check for double tap on empty canvas
-    if (this.isEmptyClick(e.target)) {
-      const currentTime = Date.now();
-      const timeDiff = currentTime - this.lastTapTime;
-      const distX = Math.abs(e.clientX - this.lastTapX);
-      const distY = Math.abs(e.clientY - this.lastTapY);
-
-      if (timeDiff < 300 && distX < 20 && distY < 20) {
-        // Double tap detected
-        e.preventDefault();
-        this.showComponentPicker(e.clientX, e.clientY);
-        return;
-      }
-
-      this.lastTapTime = currentTime;
-      this.lastTapX = e.clientX;
-      this.lastTapY = e.clientY;
-    }
 
     if (e.target.classList.contains('resize-handle')) {
       // Resizing
@@ -1762,58 +1747,88 @@ class SnappingCanvas extends HTMLElement {
     this.saveToLocalStorage();
   }
 
-  showComponentPicker(x, y) {
-    const canvasBounds = this.getBoundingClientRect();
-    this.componentPicker.style.left = (x - canvasBounds.left) + 'px';
-    this.componentPicker.style.top = (y - canvasBounds.top) + 'px';
-    this.componentPicker.style.display = 'flex';
-    this.pickerX = x - canvasBounds.left;
-    this.pickerY = y - canvasBounds.top;
+  showQuickToolbar() {
+    this.quickElementsToolbar.classList.add('visible');
+    this.toolbarVisible = true;
+  }
 
-    // Add click listener to close picker when clicking outside
-    const closeHandler = (e) => {
-      if (!this.componentPicker.contains(e.target) && e.target !== this.componentPicker) {
-        this.hideComponentPicker();
-        document.removeEventListener('pointerdown', closeHandler);
+  hideQuickToolbar() {
+    this.quickElementsToolbar.classList.remove('visible');
+    this.toolbarVisible = false;
+  }
+
+  setupTopDragInteraction() {
+    let isDragging = false;
+    let startY = 0;
+    const toolbarHeight = 80; // Approximate height of the toolbar
+    const dragThreshold = 30; // Minimum drag distance to trigger reveal
+
+    const onPointerDown = (e) => {
+      // Only trigger from the drag zone or when toolbar is visible (drag handle)
+      if (e.target === this.topDragZone ||
+          e.target.classList.contains('drag-handle') ||
+          (this.toolbarVisible && this.quickElementsToolbar.contains(e.target) && e.target.classList.contains('drag-handle'))) {
+        isDragging = true;
+        startY = e.clientY;
+        this.topDragZone.classList.add('dragging');
+        e.preventDefault();
       }
     };
-    setTimeout(() => {
-      document.addEventListener('pointerdown', closeHandler);
-    }, 100);
-  }
 
-  hideComponentPicker() {
-    this.componentPicker.style.display = 'none';
-  }
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
 
-  addComponentFromTemplate(templateIndex) {
-    const template = this.componentTemplates[templateIndex];
-    if (!template) return;
+      const deltaY = e.clientY - startY;
 
-    const newRect = document.createElement('div');
-    newRect.className = 'rect';
-    newRect.style.width = template.width + 'px';
-    newRect.style.height = template.height + 'px';
-    newRect.style.border = this.bordersVisible ? '2px solid #19f' : 'none';
-    newRect.innerHTML = template.html;
+      if (!this.toolbarVisible && deltaY > dragThreshold) {
+        // Dragging down from top - show toolbar
+        this.showQuickToolbar();
+      } else if (this.toolbarVisible && deltaY < -dragThreshold) {
+        // Dragging up - hide toolbar
+        this.hideQuickToolbar();
+      }
+    };
 
-    const handle = document.createElement('div');
-    handle.className = 'resize-handle';
-    if (!this.bordersVisible) handle.style.display = 'none';
-    newRect.appendChild(handle);
+    const onPointerUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        this.topDragZone.classList.remove('dragging');
+      }
+    };
 
-    // Position at the picker location (centered on click point)
-    newRect.style.left = (this.pickerX - template.width / 2) + 'px';
-    newRect.style.top = (this.pickerY - template.height / 2) + 'px';
+    // Mouse/touch entering from outside the window at the top
+    const onMouseEnter = (e) => {
+      // If entering from outside the window (y was 0 or negative) and now inside
+      if (e.clientY <= 5 && e.buttons > 0) {
+        // Mouse button is held down while entering from top
+        this.showQuickToolbar();
+      }
+    };
 
-    this.appendChild(newRect);
+    // Close toolbar when clicking outside
+    const onDocumentClick = (e) => {
+      if (this.toolbarVisible &&
+          !this.quickElementsToolbar.contains(e.target) &&
+          e.target !== this.topDragZone) {
+        this.hideQuickToolbar();
+      }
+    };
 
-    // Select the new component
-    this.deselectAll();
-    this.selectRect(newRect);
+    this.topDragZone.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
+    this.topDragZone.addEventListener('mouseenter', onMouseEnter);
+    document.addEventListener('click', onDocumentClick);
 
-    // Save after adding component
-    this.saveToLocalStorage();
+    // Also allow the toolbar's drag handle to close
+    this.quickElementsToolbar.addEventListener('pointerdown', (e) => {
+      if (e.target.classList.contains('drag-handle')) {
+        isDragging = true;
+        startY = e.clientY;
+        e.preventDefault();
+      }
+    });
   }
 
   addComponentAtCenter(templateIndex) {
